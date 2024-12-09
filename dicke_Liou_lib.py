@@ -30,106 +30,39 @@ def Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ):
     Lop_even = Lop[::2,::2]
     if not os.path.exists("evals_par_Lop"):
         os.mkdir("evals_par_Lop")
-    file_path = f"evals_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_γ={γ}_g={g}"
+    file_path = f"evals_par_Lop/evals_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_γ={γ}_g={g}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         eigvals = sl.eigvals(Lop_even)
+        idx = np.argsort(eigvals.imag)
+        eigvals = eigvals[idx]
         np.save(file_path,eigvals)
     else:
         print(f"{file_path} already exists.")
-    Lop_even_evals = np.load(file_path)
+    Lop_even_eigvals = np.load(file_path)
 
-    return Lop_even_evals
+    return Lop_even_eigvals
 
-def loc_den(v, i, eigvals):
+def loc_avg_den(σ, eigvals, E):
     '''
     This function gives local density of states.
-    Args:    
-    - v : Local unfolding parameter
+    ref: https://journals.aps.org/pra/pdf/10.1103/PhysRevA.105.L050201
+    Args:   
+    - w : frequency of the bosonic field
+    - w0 : Energy difference in spin states
+    - g : Coupling strength
+    - M : Upper limit of bosonic fock states
+    - j : Pseudospin
+    - γ : Decay rate 
+    - σ : Local unfolding parameter
     - i : index of the energy level
     - eigvals : Array of energy eigenvalues
     '''
     N = len(eigvals)
-    if (v < 1 or v > int(N-1)):
-        raise Exception(f"Enter number v between 0 and {N}")
+    π = np.pi
+    rho_avg = 1/(2*π*σ**2*N)*np.sum(np.exp(-np.abs(E-eigvals))/(2*σ**2))
     
-    if (i < v):
-        rho_L = 2 * v /(eigvals[v+v]-eigvals[0])
-    elif (i > N-1-v):
-        rho_L = 2 * v /(eigvals[N-1]-eigvals[N-1-v-v])
-    else:
-        rho_L = 2 * v /(eigvals[i+v]-eigvals[i-v])
-    
-    return rho_L
-
-def unf_eigval_fun(v, eigvals):
-
-    """
-    Unfolds the even spectrum locally and returns the unfolded spectrum
-    Args:
-    - v : spread of eigenvalues taken into consideration while local unfolding
-    - eigvals: list of eigenvalues
-    """
-    # Unfolded levels
-    lvl_unf = []
-    unf_val = 0
-    for i in range(len(eigvals)):
-        # Unfolded value of energy
-        unf_val = 0
-        for m in range(len(eigvals[:i])):
-            # Local density of states
-            rho_L = loc_den(v, m, eigvals)
-            unf_val += rho_L * (eigvals[m]-eigvals[m-1])
-        lvl_unf.append(unf_val)
-    lvl_unf = np.sort(lvl_unf)
-    
-    return lvl_unf
-
-def eigval_sp_fun(ω, ω0, j, M, g, v):
-
-    '''
-    The function returns the spacings between the unfolded eigenvalues
-    Args:
-    - ω : frequency of the bosonic field
-    - ω0 : Energy difference in spin states
-    - j : Pseudospin
-    - M : Upper limit of bosonic fock states
-    - g : Coupling strength
-    - v : Local unfolding parameter
-    '''
-    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g)  
-    eigvals = unf_eigval_fun(v, eigvals)
-    eigvals_sp = []
-    for i in range(len(eigvals)-1):
-        lvl_sp = eigvals[i+1]-eigvals[i]
-        eigvals_sp.append(lvl_sp)
-    eigvals_sp = np.sort(eigvals_sp)
-
-    return eigvals_sp
-
-def r_avg_fun(ω, ω0, j, M, g):
-
-    '''
-    Calculates the average eigenvalue spacing ratio of the spectrum
-    Args:
-    - j : Pseudospin
-    - M : Upper limit of bosonic fock states
-    - g : Coupling strength
-    '''
-    eigval_sp_arr = []
-    r = []
-    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g)
-    for i in range(len(eigvals)-1):
-        eigval_sp_arr.append(eigvals[i+1]-eigvals[i])
-    for i in range(len(eigvals)-2):
-        r.append(eigval_sp_arr[i+1]/eigval_sp_arr[i])
-    for i in range(len(eigvals)-2):
-        if r[i] > 1:
-            r[i] = 1/ r[i]
-        else:
-            r[i] = r[i]
-
-    return np.average(r)
+    return rho_avg
 
 def sff_list_fun(ω, ω0, j, M, g, β, tlist):
     '''
@@ -229,3 +162,53 @@ def sff_goe_list_fun(j, M, β, tlist, ntraj):
     sff_list = np.load(file_path)
 
     return sff_list
+
+"""
+def eigval_sp_fun(ω, ω0, g, M, j, γ, σ, eigvals):
+    '''
+    Unfolds the even spectrum locally and returns the unfolded eigenvalue spacings
+    Args:
+    - σ : Local unfolding parameter
+    - eigvals: list of eigenvalues
+    '''
+    for E_ind, E in enumerate(eigvals):
+        eigvals = np.delete(eigvals,E_ind)
+        dist = abs(E-eigvals[0])
+        for idx, _ in enumerate(eigvals[1:]):
+            dist = abs(E-eigvals[idx])
+            if min_dist<dist:
+                min_dist=dist
+                nn = E
+                nn_idx = idx
+
+    eigvals_sp = np.diff(Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ))
+
+    for E in eigvals:
+        eigvals_sp = eigvals_sp * np.sqrt(loc_avg_den(σ, eigvals, E))
+
+    return eigvals_sp
+
+def r_avg_fun(ω, ω0, j, M, g):
+
+    '''
+    Calculates the average eigenvalue spacing ratio of the spectrum
+    Args:
+    - j : Pseudospin
+    - M : Upper limit of bosonic fock states
+    - g : Coupling strength
+    '''
+    eigval_sp_arr = []
+    r = []
+    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g)
+    for i in range(len(eigvals)-1):
+        eigval_sp_arr.append(eigvals[i+1]-eigvals[i])
+    for i in range(len(eigvals)-2):
+        r.append(eigval_sp_arr[i+1]/eigval_sp_arr[i])
+    for i in range(len(eigvals)-2):
+        if r[i] > 1:
+            r[i] = 1/ r[i]
+        else:
+            r[i] = r[i]
+
+    return np.average(r)
+"""
