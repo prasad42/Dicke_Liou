@@ -1,13 +1,9 @@
 from parameters import *
-import numpy as np
-from scipy.sparse import csc_matrix
-import scipy.sparse.linalg as sla
-import os
-from tqdm import tqdm
-import qutip as qt
-import scipy.linalg as sl
 from dicke_Liou_lib import *
-
+import matplotlib.pyplot as plt
 
 for g in g_arr:
-    Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ)
+    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ)
+
+plt.plot(eigvals.imag)
+plt.show()
