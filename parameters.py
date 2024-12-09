@@ -7,7 +7,7 @@ import numpy as np
 
 # SET UP THE CALCULATION
 
-ω  = 1.0; ω0 = 1.0; j = 10; M = 30; v = 30; γ=1.0; β=0; ntraj=100; gc={np.round((np.sqrt(ω*ω0)/2),2)}
+ω  = 1.0; ω0 = 1.0; j = 10; M = 20; v = 30; γ=1.0; β=0; ntraj=100; gc={np.round((np.sqrt(ω*ω0)/2),2)}
 g_arr = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
 
 # Number of random matrices to average over in GOE and GUE
