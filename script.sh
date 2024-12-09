@@ -12,4 +12,4 @@ source /home/apps/DL/DL-CondaPy3.7/etc/profile.d/conda.sh
 conda activate qutip
 
 # Run your Python script
-python3 calc_SFF.py
+python3 calc_Lop_evals.py
