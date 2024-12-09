@@ -9,5 +9,5 @@ import scipy.linalg as sl
 from dicke_Liou_lib import *
 
 
-for g in g_arr:
+for g in tqdm(g_arr):
     Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ)
