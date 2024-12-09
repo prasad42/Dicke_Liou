@@ -5,7 +5,7 @@
 #SBATCH --job-name=2siteBH
 #SBATCH --error=job.%J.err_node_48 
 #SBATCH --output=job.%J.out_node_48 
-#SBATCH --partition=small
+#SBATCH --partition=highmemory
 
 # Activate the virtual environment
 source /home/apps/DL/DL-CondaPy3.7/etc/profile.d/conda.sh
