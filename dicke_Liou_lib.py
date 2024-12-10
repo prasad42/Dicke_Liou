@@ -34,8 +34,8 @@ def Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ):
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         eigvals = sl.eigvals(Lop_even)
-        idx = np.argsort(eigvals.imag)
-        eigvals = eigvals[idx]
+        # idx = np.argsort(eigvals.imag)
+        # eigvals = eigvals[idx]
         np.save(file_path,eigvals)
     else:
         print(f"{file_path} already exists.")

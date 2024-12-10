@@ -1,0 +1,20 @@
+==========================================
+SLURM_CLUSTER_NAME = paramananta
+SLURM_ARRAY_JOB_ID = 
+SLURM_ARRAY_TASK_ID = 
+SLURM_ARRAY_TASK_COUNT = 
+SLURM_ARRAY_TASK_MAX = 
+SLURM_ARRAY_TASK_MIN = 
+SLURM_JOB_ACCOUNT = iitgn
+SLURM_JOB_ID = 21934508
+SLURM_JOB_NAME = 2siteBH
+SLURM_JOB_NODELIST = hm[034-037]
+SLURM_JOB_USER = prasad.pawar
+SLURM_JOB_UID = 40139
+SLURM_JOB_PARTITION = highmemory
+SLURM_TASK_PID = 29037
+SLURM_SUBMIT_DIR = /home/prasad.pawar/Projects/Dicke_Liou
+SLURM_CPUS_ON_NODE = 48
+SLURM_NTASKS = 192
+SLURM_TASK_PID = 29037
+==========================================
