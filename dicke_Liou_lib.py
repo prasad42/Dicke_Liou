@@ -2,7 +2,9 @@ import numpy as np
 import qutip as qt
 import os
 import scipy.linalg as sl
+import scipy.sparse.linalg as ssl
 from tqdm import tqdm
+import time
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -34,9 +36,24 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
         Lop = Lop.data
         Lop = Lop.to_array()
         Lop_even = Lop[::2,::2]
-        eigvals = sl.eigvals(Lop_even)
-        # idx = np.argsort(eigvals.imag)
-        # eigvals = eigvals[idx]
+
+        print(f"g: {g}, Lop: {np.shape(Lop_even)}")
+
+        # time_start = time.perf_counter()
+        # eigvals = np.linalg.eigvals(Lop_even)
+        # time_end = time.perf_counter()
+        # print(f"Numpy: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+
+        # time_start = time.perf_counter()
+        # eigvals = sl.eigvals(Lop_even)
+        # time_end = time.perf_counter()
+        # print(f"Scipy: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+
+        time_start = time.perf_counter()
+        eigvals = ssl.eigs(Lop_even, k=int((2*j+1)*M)**2/2, return_eigenvectors=False)
+        time_end = time.perf_counter()
+        print(f"Scipy Sparse: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+
         np.save(file_path,eigvals)
     else:
         print(f"{file_path} already exists.")
@@ -127,17 +144,33 @@ def generate_ginue_matrix(N):
     A = (A + 1j*B) / np.sqrt(2)
     return A
 
-def ginue_evals_fun(j, M, β):
+def ginue_evals_fun(j, M, β, traj_ind):
     # N: Size of the GinUE matrix.
-    N  = int((2*j+1)*M/2)
-    N = N*N
+    N = (2*j+1)*M
+    N = int(N**2/2)+1
     if not os.path.exists("evals_GinUE"):
         os.mkdir("evals_GinUE")
-    file_path = f"evals_GinUE/evals_j={j}_M={M}_N={N}_β={β}"
+    file_path = f"evals_GinUE/evals_j={j}_M={M}_N={N}_β={β}_traj_ind={traj_ind}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         H = generate_ginue_matrix(N)
-        eigvals = sl.eigvals(H)
+
+        # time_start = time.perf_counter()
+        # eigvals = np.linalg.eigvals(H)
+        # time_end = time.perf_counter()
+        # print(f"Numpy: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+
+        # time_start = time.perf_counter()
+        # eigvals = sl.eigvals(H)
+        # time_end = time.perf_counter()
+        # print(f"Scipy: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+
+        time_start = time.perf_counter()
+        eigvals = ssl.eigs(H, k=N, return_eigenvectors=False)
+        time_end = time.perf_counter()
+        print(f"Scipy Sparse: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+
+        np.save(file_path,eigvals)
     else:
         print(f"{file_path} already exists.")
     eigvals = np.load(file_path)

@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH -N 4
+#SBATCH -N 8
 #SBATCH --ntasks-per-node=48 
 #SBATCH --time=23:50:20 
 #SBATCH --job-name=2siteBH
@@ -12,4 +12,4 @@ source /home/apps/DL/DL-CondaPy3.7/etc/profile.d/conda.sh
 conda activate qutip
 
 # Run your Python script
-python3 calc_Lop_evals.py
+python3 calc_ginue_evals.py
