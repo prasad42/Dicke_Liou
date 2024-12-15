@@ -6,33 +6,34 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
-def Dicke_Lop_even_evals_fun(ω, ω0, g, M, j, γ):
+def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
     '''
     This function returns the Dicke Hamiltonian for the following parameters.
     Args:
     - w : frequency of the bosonic field
     - w0 : Energy difference in spin states
-    - g : Coupling strength
-    - M : Upper limit of bosonic fock states
     - j : Pseudospin
+    - M : Upper limit of bosonic fock states
+    - g : Coupling strength
     - γ : Decay rate
     '''
-    a  = qt.tensor(qt.destroy(M), qt.qeye(int(2*j+1)))
-    Jp = qt.tensor(qt.qeye(M), qt.jmat(j, '+'))
-    Jm = qt.tensor(qt.qeye(M), qt.jmat(j, '-'))
-    Jz = qt.tensor(qt.qeye(M), qt.jmat(j, 'z'))
-    H0 = ω * a.dag() * a + ω0 * Jz
-    H1 = 1.0 / np.sqrt(2*j) * (a + a.dag()) * (Jp + Jm)
-    H = H0 + g * H1
-    Lop = qt.liouvillian(H,np.sqrt(γ)*a)
-    Lop = Lop.data
-    Lop = Lop.to_array()
-    Lop_even = Lop[::2,::2]
+    
     if not os.path.exists("evals_par_Lop"):
         os.mkdir("evals_par_Lop")
     file_path = f"evals_par_Lop/evals_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_γ={γ}_g={g}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
+        a  = qt.tensor(qt.destroy(M), qt.qeye(int(2*j+1)))
+        Jp = qt.tensor(qt.qeye(M), qt.jmat(j, '+'))
+        Jm = qt.tensor(qt.qeye(M), qt.jmat(j, '-'))
+        Jz = qt.tensor(qt.qeye(M), qt.jmat(j, 'z'))
+        H0 = ω * a.dag() * a + ω0 * Jz
+        H1 = 1.0 / np.sqrt(2*j) * (a + a.dag()) * (Jp + Jm)
+        H = H0 + g * H1
+        Lop = qt.liouvillian(H,np.sqrt(γ)*a)
+        Lop = Lop.data
+        Lop = Lop.to_array()
+        Lop_even = Lop[::2,::2]
         eigvals = sl.eigvals(Lop_even)
         # idx = np.argsort(eigvals.imag)
         # eigvals = eigvals[idx]
@@ -64,7 +65,7 @@ def loc_avg_den(σ, eigvals, E):
     
     return rho_avg
 
-def sff_list_fun(ω, ω0, j, M, g, β, tlist):
+def dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist):
     '''
     Calculates the sff with energies of the Dicke Hamiltonian at each time step for a single trajectory.
     Args:
@@ -74,18 +75,18 @@ def sff_list_fun(ω, ω0, j, M, g, β, tlist):
     - β : Inverse Temperature
     - tlist : pass time list as an array
     '''
-    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g)
-    if not os.path.exists("sff"):
-        os.mkdir("sff")
-    file_path = f"sff/sff_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω*ω0)/2,2)}_β={β}_g={g}.npy"
+    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ)
+    if not os.path.exists("dsff"):
+        os.mkdir("dsff")
+    file_path = f"dsff/dsff_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω*ω0)/2,2)}_β={β}_g={g}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         sff_list = []
-        for t in tlist:
+        for t in tqdm(tlist):
             sff = 0
             norm = 0
             for eigval in eigvals:
-                sff += np.exp(-(β+1j*t)*(eigval))
+                sff += np.exp(-(β-1j*t)*(np.real(eigval)))
                 norm += np.exp(-β*eigval)
             sff = np.conjugate(sff)*sff/(norm**2)
             sff_list.append(sff)
@@ -96,7 +97,7 @@ def sff_list_fun(ω, ω0, j, M, g, β, tlist):
 
     return sff_list
 
-def sff_rl_fun(ω, ω0, j, M, g, β, tlist, win = 50):
+def sff_rl_fun(ω, ω0, j, M, g, β, γ, tlist, win = 50):
     '''
     This function returns the rolling average of the sff over time.
     Args:
@@ -107,7 +108,7 @@ def sff_rl_fun(ω, ω0, j, M, g, β, tlist, win = 50):
     - tlist : pass time list as an array
     - win: Window size for rolling average
     '''
-    sff_list = sff_list_fun(ω, ω0, j, M, g, β, tlist)
+    sff_list = dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist)
     sff_rl = []
     for t_ind in range(0,len(tlist),1):
         win_start = int(t_ind)
@@ -117,15 +118,33 @@ def sff_rl_fun(ω, ω0, j, M, g, β, tlist, win = 50):
 
     return sff_rl
 
-def generate_goe_matrix(N):
+def generate_ginue_matrix(N):
     """
     Generate an NxN Gaussian Orthogonal Ensemble (GOE) matrix.
     """
     A = np.random.normal(0, 1, size=(N, N))
-    A = (A + A.T) / 2
+    B = np.random.normal(0, 1, size=(N, N))
+    A = (A + 1j*B) / np.sqrt(2)
     return A
 
-def sff_goe_list_fun(j, M, β, tlist, ntraj):
+def ginue_evals_fun(j, M, β):
+    # N: Size of the GinUE matrix.
+    N  = int((2*j+1)*M/2)
+    N = N*N
+    if not os.path.exists("evals_GinUE"):
+        os.mkdir("evals_GinUE")
+    file_path = f"evals_GinUE/evals_j={j}_M={M}_N={N}_β={β}"
+    if not os.path.exists(file_path):
+        print(f"{file_path} does not exist, generating data.")
+        H = generate_ginue_matrix(N)
+        eigvals = sl.eigvals(H)
+    else:
+        print(f"{file_path} already exists.")
+    eigvals = np.load(file_path)
+
+    return eigvals
+
+def sff_ginue_list_fun(j, M, β, tlist, ntraj=10):
     """
     Compute the Spectral Form Factor (sff) for GOE matrices of size N,
     averaged over `num_realizations` random GOE matrices.
@@ -140,21 +159,21 @@ def sff_goe_list_fun(j, M, β, tlist, ntraj):
     Returns:
     - sff_list: Array of sff values for each T.
     """
-    # N: Size of the GOE matrix.
+    # N: Size of the GinUE matrix.
     N  = int((2*j+1)*M/2)
-    if not os.path.exists("sff"):
-        os.mkdir("sff")
-    file_path = f"sff/sff_goe_j={j}_M={M}_N={N}_β={β}.npy"
+    N = N*N
+    if not os.path.exists("dsff"):
+        os.mkdir("dsff")
+    file_path = f"dsff/dsff_goe_j={j}_M={M}_N={N}_β={β}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         sff_list = np.zeros_like(tlist, dtype=np.float64)
         for _ in tqdm(range(ntraj)):
-            H = generate_goe_matrix(N)
-            eigvals = np.linalg.eigvalsh(H)
+            eigvals = ginue_evals_fun(j, M, β)
             for i, t in enumerate(tlist):
                 exp_sum = np.sum(np.exp(-(β + 1j*t) * eigvals))
                 sff_list[i] += np.abs(exp_sum)**2
-        sff_list /= ntraj * N**2 
+        sff_list /= ntraj * N**2
         np.save(file_path,sff_list)
     else:
         print(f"{file_path} already exists.")
