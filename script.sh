@@ -1,7 +1,7 @@
 #!/bin/sh
-#SBATCH -N 8
+#SBATCH -N 2
 #SBATCH --ntasks-per-node=48 
-#SBATCH --time=23:50:20 
+#SBATCH --time=23:59:59 
 #SBATCH --job-name=2siteBH
 #SBATCH --error=job.%J.err_node_48 
 #SBATCH --output=job.%J.out_node_48 
