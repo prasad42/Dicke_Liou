@@ -7,7 +7,6 @@ import scipy.sparse as ss
 from tqdm import tqdm
 import time
 import warnings
-from scipy.io import mmwrite
 import subprocess
 warnings.filterwarnings('ignore')
 from sys import getsizeof
@@ -43,7 +42,6 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
         Lop = ss.csr_matrix(Lop)
         print(f"Lop is sparse: {ss.issparse(Lop)}, memory size: {getsizeof(Lop)}")
         print(f"g: {g}, Lop: {np.shape(Lop_even)}")
-        mmwrite(f"evals_par_Lop/evals_j={j}_cM={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_γ={γ}_g={g}.mtx", Lop)
 
         time_start = time.perf_counter()
         eigvals = ssl.eigs(Lop_even, k=int((2*j+1)*M)**2/2, return_eigenvectors=False)

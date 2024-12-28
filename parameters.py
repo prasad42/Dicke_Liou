@@ -7,8 +7,8 @@ import numpy as np
 
 # SET UP THE CALCULATION
 
-ω  = 1.0; ω0 = 1.0; j = 5; M = 30; v = 30; γ=2.2; β=0; gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}; M_arr = [30]
-g_arr = np.round(np.arange(1.0,1.55,0.1),2)
+ω  = 1.0; ω0 = 1.0; j = 5; M = 20; v = 30; γ=1.0; β=0; gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}; M_arr = [20]
+g_arr = np.round(np.arange(0.0,1.05,0.05),2)
 # Number of random matrices to average over in GOE and GUE
 num_realizations = 1000
 

@@ -23,7 +23,7 @@ def main():
     for g_ind, g in enumerate(g_arr):
         dsff_list = dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist)
         dsff_rl = dsff_rl_fun(ω, ω0, j, M, g, β, γ, tlist, win=100)
-        plt.subplot(1,2,g_ind+1)
+        plt.subplot(20,2,g_ind+1)
         plt.title(f"g={g}")
         plt.xscale('log'); plt.yscale('log')
         plt.xlabel("Time"); plt.ylabel("sff")

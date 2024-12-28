@@ -12,4 +12,4 @@ source /home/apps/DL/DL-CondaPy3.7/etc/profile.d/conda.sh
 conda activate qutip
 
 # Run your Python script
-python3 calc_ginue_evals.py
+python3 plot_dsff.py
