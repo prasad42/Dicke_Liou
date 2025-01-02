@@ -25,7 +25,7 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
     
     if not os.path.exists("evals_par_Lop"):
         os.mkdir("evals_par_Lop")
-    file_path = f"evals_par_Lop/evals_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_γ={γ}_g={g}.npy"
+    file_path = f"evals_par_Lop/evals_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2,2)}_γ={γ}_g={g}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         a  = qt.tensor(qt.destroy(M), qt.qeye(int(2*j+1)))
@@ -42,16 +42,10 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
         Lop = ss.csr_matrix(Lop)
         print(f"Lop is sparse: {ss.issparse(Lop)}, memory size: {getsizeof(Lop)}")
         print(f"g: {g}, Lop: {np.shape(Lop_even)}")
-
         time_start = time.perf_counter()
         eigvals = ssl.eigs(Lop_even, k=int((2*j+1)*M)**2/2, return_eigenvectors=False)
         time_end = time.perf_counter()
         print(f"Scipy Sparse: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
-
-        # time_start = time.perf_counter()
-        # eigvals = Main.include("example.jl")
-        # time_end = time.perf_counter()
-        # print(f"Scipy Sparse: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
         
         np.save(file_path,eigvals)
     else:
@@ -82,7 +76,6 @@ def loc_avg_den(σ, eigvals, E):
     return rho_avg
 
 def unf_eigval_fun(v, eigvals):
-
     """
     Unfolds the even spectrum locally and returns the unfolded spectrum
     Args:
@@ -127,7 +120,7 @@ def eigval_sp_fun(ω, ω0, j, M, g, γ, v):
 
     return eigvals_sp
 
-def dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist):
+def dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist, axis):
     '''
     Calculates the sff with energies of the Dicke Hamiltonian at each time step for a single trajectory.
     Args:
@@ -140,25 +133,29 @@ def dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist):
     eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ)
     if not os.path.exists("dsff"):
         os.mkdir("dsff")
-    file_path = f"dsff/dsff_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_β={β}_g={g}.npy"
+    file_path = f"dsff/dsff_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2,2)}_β={β}_g={g}_axis={axis}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         sff_list = []
         for t in tqdm(tlist):
             sff = 0
             norm = 0
-            sff = np.sum(np.exp(-(β-1j*t)*(np.imag(eigvals))))
-            norm += np.sum(np.exp(-β*eigvals))
+            if axis == "imag":
+                sff = np.sum(np.exp(-(β-1j*t)*(np.imag(eigvals))))
+                norm += np.sum(np.exp(-β*np.imag(eigvals)))
+            elif axis == "real":
+                sff = np.sum(np.exp(-(β-1j*t)*(np.real(eigvals))))
+                norm += np.sum(np.exp(-β*np.real(eigvals)))
             sff = np.conjugate(sff)*sff/(norm**2)
             sff_list.append(sff)
-            np.save(file_path,np.array(sff_list))
+        np.save(file_path,np.array(sff_list))
     else:
         print(f"{file_path} already exists.")
     sff_list = np.load(file_path)
 
     return sff_list
 
-def dsff_rl_fun(ω, ω0, j, M, g, β, γ, tlist, win = 50):
+def dsff_rl_fun(sff_list, tlist, win = 50):
     '''
     This function returns the rolling average of the sff over time.
     Args:
@@ -169,7 +166,6 @@ def dsff_rl_fun(ω, ω0, j, M, g, β, γ, tlist, win = 50):
     - tlist : pass time list as an array
     - win: Window size for rolling average
     '''
-    sff_list = dsff_list_fun(ω, ω0, j, M, g, β, γ, tlist)
     sff_rl = []
     for t_ind in range(0,len(tlist),1):
         win_start = int(t_ind)
@@ -181,7 +177,7 @@ def dsff_rl_fun(ω, ω0, j, M, g, β, γ, tlist, win = 50):
 
 def generate_ginue_matrix(N):
     """
-    Generate an NxN Gaussian Orthogonal Ensemble (GOE) matrix.
+    Generate an NxN Ginibre Unitary Ensemble (GinUE) matrix.
     """
     A = np.random.normal(0, 1, size=(N, N))
     B = np.random.normal(0, 1, size=(N, N))
@@ -210,7 +206,7 @@ def ginue_evals_fun(j, M, β, traj_ind):
 
     return eigvals
 
-def dsff_ginue_list_fun(j, M, β, tlist, ntraj=1, win=50):
+def dsff_ginue_list_fun(j, M, β, tlist, axis, ntraj=1, win=50):
     """
     Compute the Spectral Form Factor (sff) for GOE matrices of size N,
     averaged over `ntraj` random GOE matrices.
@@ -230,141 +226,107 @@ def dsff_ginue_list_fun(j, M, β, tlist, ntraj=1, win=50):
     N = N**2/2
     if not os.path.exists("dsff"):
         os.mkdir("dsff")
-    file_path = f"dsff/dsff_goe_j={j}_M={M}_N={N}_β={β}.npy"
+    file_path = f"dsff/dsff_goe_j={j}_M={M}_N={N}_β={β}_axis={axis}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
-        sff_list = np.zeros_like(tlist, dtype=np.float64)
-        eigvals = ginue_evals_fun(j, M, β, ntraj)
+        dsff_list = np.zeros_like(tlist, dtype=np.float64)
+        eigvals = ginue_evals_fun(j, M, β, traj_ind=0)
         for i, t in tqdm(enumerate(tlist)):
-            exp_sum = np.sum(np.exp(-(β-1j*t)*(np.imag(eigvals))))
-            sff_list[i] += np.abs(exp_sum)**2
-        sff_list /= ntraj * N**2
+            if axis == 'imag':
+                exp_sum = np.sum(np.exp(-(β-1j*t)*(np.imag(eigvals))))
+            elif axis == 'real':
+                exp_sum = np.sum(np.exp(-(β-1j*t)*(np.real(eigvals))))
+            dsff_list[i] += np.abs(exp_sum)**2
+        dsff_list /= ntraj * N**2
         if ntraj == 1:
-            sff_rl = []
+            dsff_rl = []
             for t_ind in range(0,len(tlist),1):
                 win_start = int(t_ind)
                 win_end = int(t_ind+win)
-                sff_rl_val = np.average(sff_list[win_start:win_end], axis=0)
-                sff_rl.append(sff_rl_val)
-            np.save(file_path,sff_rl)
+                dsff_rl_val = np.average(dsff_list[win_start:win_end], axis=0)
+                dsff_rl.append(dsff_rl_val)
+            np.save(file_path,dsff_rl)
         else:
-            np.save(file_path,sff_list)
+            np.save(file_path,dsff_list)
     else:
         print(f"{file_path} already exists.")
-    
-    sff_list = np.load(file_path)
+    dsff_list = np.load(file_path)
 
-    return sff_list
+    return dsff_list
 
-def generate_goe_matrix(N):
+def generate_ginoe_matrix(N):
     """
-    Generate an NxN Gaussian Orthogonal Ensemble (GOE) matrix.
+    Generate an NxN Ginibre Orthogonal Ensemble (GinOE) matrix.
     """
     A = np.random.normal(0, 1, size=(N, N))
-    A = (A + A.T) / 2
     return A
 
-def sff_goe_list_fun(N, β, tlist, ntraj=100):
-    """
-    Compute the Spectral Form Factor (sff) for GOE matrices of size N,
-    averaged over `num_realizations` random GOE matrices.
-    
-    Args:
-    - N: Size of the GOE matrix.
-    - β : Inverse Temperature
-    - tlist: Array of time values (T) for which to compute sff.
-    - ntraj: Number of GOE realizations to average over.
-    
-    Returns:
-    - sff_list: Array of sff values for each T.
-    """
-    if not os.path.exists("sff"):
-        os.mkdir("sff")
-    file_path = f"sff/sff_goe_N={N}_β={β}_ntraj={ntraj}.npy"
+def ginoe_evals_fun(j, M, β, traj_ind):
+    # N: Size of the GinUE matrix.
+    N = (2*j+1)*M
+    N = int(N**2/2)+1
+    if not os.path.exists("evals_GinUE"):
+        os.mkdir("evals_GinUE")
+    eigvals_list = []
+    file_path = f"evals_GinUE/evals_j={j}_M={M}_N={N}_β={β}_traj_ind={traj_ind}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
-        sff_list = np.zeros_like(tlist, dtype=np.float64)
-        for _ in tqdm(range(ntraj)):
-            H = generate_goe_matrix(N)
-            eigvals = np.linalg.eigvalsh(H)
-            for i, t in enumerate(tlist):
-                exp_sum = np.sum(np.exp(-(β + 1j*t) * eigvals))
-                sff_list[i] += np.abs(exp_sum)**2
-        sff_list /= ntraj * N**2 
-        np.save(file_path,sff_list)
+        H = generate_ginoe_matrix(N)
+        time_start = time.perf_counter()
+        eigvals = sl.eigvals(H)
+        time_end = time.perf_counter()
+        print(f"Scipy: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
+        np.save(file_path,eigvals)
     else:
         print(f"{file_path} already exists.")
+    eigvals = np.load(file_path)
 
-    sff_list = np.load(file_path)
+    return eigvals
 
-    return sff_list
-
-def generate_gue_matrix(N):
-    """
-    Generate an NxN Gaussian Orthogonal Ensemble (GOE) matrix.
-    """
-    A = np.random.normal(0, 1, size=(N, N))
-    A = (A + np.conjugate(A.T)) / 2
-    return A
-
-def sff_gue_list_fun(N, β, tlist, ntraj=100):
+def dsff_ginoe_list_fun(j, M, β, tlist, axis, ntraj=1, win=50):
     """
     Compute the Spectral Form Factor (sff) for GOE matrices of size N,
-    averaged over `num_realizations` random GOE matrices.
+    averaged over `ntraj` random GOE matrices.
     
-    Args:
-    - N: Size of the GOE matrix.
-    - β : Inverse Temperature
-    - tlist: Array of time values (T) for which to compute sff.
-    - ntraj: Number of GOE realizations to average over.
-    
-    Returns:
-    - sff_list: Array of sff values for each T.
-    """
-    if not os.path.exists("sff"):
-        os.mkdir("sff")
-    file_path = f"sff/sff_goe_N={N}_β={β}_ntraj={ntraj}.npy"
-    if not os.path.exists(file_path):
-        print(f"{file_path} does not exist, generating data.")
-        sff_list = np.zeros_like(tlist, dtype=np.float64)
-        for _ in tqdm(range(ntraj)):
-            H = generate_gue_matrix(N)
-            eigvals = np.linalg.eigvalsh(H)
-            for i, t in enumerate(tlist):
-                exp_sum = np.sum(np.exp(-(β + 1j*t) * eigvals))
-                sff_list[i] += np.abs(exp_sum)**2
-        sff_list /= ntraj * N**2 
-        np.save(file_path,sff_list)
-    else:
-        print(f"{file_path} already exists.")
-
-    sff_list = np.load(file_path)
-
-    return sff_list
-
-"""
-
-def r_avg_fun(ω, ω0, j, M, g):
-
-    '''
-    Calculates the average eigenvalue spacing ratio of the spectrum
     Args:
     - j : Pseudospin
     - M : Upper limit of bosonic fock states
-    - g : Coupling strength
-    '''
-    eigval_sp_arr = []
-    r = []
-    eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g)
-    for i in range(len(eigvals)-1):
-        eigval_sp_arr.append(eigvals[i+1]-eigvals[i])
-    for i in range(len(eigvals)-2):
-        r.append(eigval_sp_arr[i+1]/eigval_sp_arr[i])
-    for i in range(len(eigvals)-2):
-        if r[i] > 1:
-            r[i] = 1/ r[i]
+    - β : Inverse Temperature
+    - tlist: Array of time values (T) for which to compute sff.
+    - ntraj: Number of GOE realizations to average over.
+    
+    Returns:
+    - sff_list: Array of sff values for each T.
+    """
+    # N: Size of the GinOE matrix.
+    N  = int((2*j+1)*M)
+    N = N**2/2
+    if not os.path.exists("dsff"):
+        os.mkdir("dsff")
+    file_path = f"dsff/dsff_goe_j={j}_M={M}_N={N}_β={β}_axis={axis}.npy"
+    if not os.path.exists(file_path):
+        print(f"{file_path} does not exist, generating data.")
+        dsff_list = np.zeros_like(tlist, dtype=np.float64)
+        eigvals = ginoe_evals_fun(j, M, β, traj_ind=0)
+        for i, t in tqdm(enumerate(tlist)):
+            if axis == 'imag':
+                exp_sum = np.sum(np.exp(-(β-1j*t)*(np.imag(eigvals))))
+            elif axis == 'real':
+                exp_sum = np.sum(np.exp(-(β-1j*t)*(np.real(eigvals))))
+            dsff_list[i] += np.abs(exp_sum)**2
+        dsff_list /= ntraj * N**2
+        if ntraj == 1:
+            dsff_rl = []
+            for t_ind in range(0,len(tlist),1):
+                win_start = int(t_ind)
+                win_end = int(t_ind+win)
+                dsff_rl_val = np.average(dsff_list[win_start:win_end], axis=0)
+                dsff_rl.append(dsff_rl_val)
+            np.save(file_path,dsff_rl)
         else:
-            r[i] = r[i]
+            np.save(file_path,dsff_list)
+    else:
+        print(f"{file_path} already exists.")
+    dsff_list = np.load(file_path)
 
-    return np.average(r)
-"""
+    return dsff_list
