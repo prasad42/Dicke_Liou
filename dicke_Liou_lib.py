@@ -55,7 +55,27 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
 
     return Lop_even_eigvals
 
-def dsff_fun(ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel):
+def filter_eigenvals(eigvals, α):
+    """
+    Filters complex eigenvalues whose absolute value of the real part 
+    is less than the maximum absolute value of the real part.
+
+    Args:
+    - eigenvalues (np.ndarray): Array of complex eigenvalues.
+    - α : filter criterion (α<1, if =1 then no filtering is done)
+
+    Returns:
+    - filtered_eigenvalues (np.ndarray): Filtered eigenvalues meeting the condition.
+    """
+    # Compute the maximum absolute value of the real part
+    max_abs_real = np.max(np.abs(np.real(eigvals)))
+    
+    # Filter eigenvalues
+    filtered_eigvals = eigvals[np.abs(np.real(eigvals)) < α*max_abs_real]
+    
+    return filtered_eigvals
+
+def dsff_fun(ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α):
     """
     Calculates the SFF with energies of the Dicke Hamiltonian at each time step for a single trajectory.
     Args:
@@ -66,20 +86,21 @@ def dsff_fun(ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel
     - tlist : Pass time list as an array
     """
     # Determine file paths based on kernel type
-    suffix = f"j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2, 2)}_β={β}_g={g}_axis={axis}"
+    suffix = f"j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2, 2)}_β={β}_g={g}_γ={γ}_axis={axis}"
     if kernel == 'rect':
         tlist = tlist_ginue
-        file_path = f"dsff/dsff_{suffix}_kernel={kernel}_win={win}.npy"
-        file_path_raw = f"dsff/dsff_raw_{suffix}_kernel={kernel}_win={win}.npy"
+        file_path = f"dsff/dsff_{suffix}_kernel={kernel}_win={win}_α={α}.npy"
+        file_path_raw = f"dsff/dsff_raw_{suffix}_kernel={kernel}_win={win}_α={α}.npy"
     elif kernel == 'gau':
-        file_path = f"dsff/dsff_{suffix}_kernel={kernel}_σ={σ}.npy"
-        file_path_raw = f"dsff/dsff_raw_{suffix}_kernel={kernel}_σ={σ}.npy"
+        file_path = f"dsff/dsff_{suffix}_kernel={kernel}_σ={σ}_α={α}.npy"
+        file_path_raw = f"dsff/dsff_raw_{suffix}_kernel={kernel}_σ={σ}_α={α}.npy"
     
     # Ensure output directory exists
     os.makedirs("dsff", exist_ok=True)
 
     # Compute eigenvalues once
     eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ)
+    eigvals = filter_eigenvals(eigvals, α)
 
     def compute_dsff():
         """
@@ -137,7 +158,7 @@ def calc_SFF(params):
     """
     return dsff_fun(*params)
 
-def parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist_ginue, tlist, axis, win, σ, kernel):
+def parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α):
     """
     Parallel computation of SFF for multiple g and M values using all available CPU cores.
 
@@ -154,7 +175,7 @@ def parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist_ginue, tlist, axis, win
 
     # Create a list of parameter tuples
     param_list = [
-        (ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel)
+        (ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α)
         for M in M_arr for g in g_arr
     ]
 
@@ -223,13 +244,11 @@ def generate_ginue_matrix(N):
     A = (A + 1j*B) / np.sqrt(2)
     return A
 
-def ginue_evals_fun(j, M, β, traj_ind):
+def ginue_evals_fun(N, traj_ind):
     # N: Size of the GinUE matrix.
-    N = (2*j+1)*M
-    N = int(N**2/2)+1
     if not os.path.exists("evals_GinUE"):
         os.mkdir("evals_GinUE")
-    file_path = f"evals_GinUE/evals_j={j}_M={M}_N={N}_β={β}_traj_ind={traj_ind}.npy"
+    file_path = f"evals_GinUE/evals_N={N}_traj_ind={traj_ind}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         H = generate_ginue_matrix(N)
@@ -244,7 +263,7 @@ def ginue_evals_fun(j, M, β, traj_ind):
 
     return eigvals
 
-def dsff_ginue_fun(j, M, β, tlist_ginue, tlist, axis, win, σ, kernel, ntraj=1):
+def dsff_ginue_fun(ω, ω0, j, M, β, tlist_ginue, tlist, g, γ, axis, win, σ, kernel, α, ntraj=1):
     """
     Compute the Spectral Form Factor (sff) for GOE matrices of size N,
     averaged over `ntraj` random GOE matrices.
@@ -259,20 +278,24 @@ def dsff_ginue_fun(j, M, β, tlist_ginue, tlist, axis, win, σ, kernel, ntraj=1)
     Returns:
     - dsff: Array of sff values for each T.
     """
-    # N: Size of the GinUE matrix.
-    N  = int((2*j+1)*M)
-    N = N**2/2
+    # Compute eigenvalues once
+    # eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ)
+    # eigvals = filter_eigenvals(eigvals, α)
+    # eig_num = len(eigvals)
+    # # N: Size of the GinUE matrix.
+    # N = eig_num
+    N = 25397
     if not os.path.exists("dsff"):
         os.mkdir("dsff")
     if kernel == 'rect':
         tlist = tlist_ginue
-        file_path = f"dsff/dsff_ginue_j={j}_M={M}_N={N}_β={β}_axis={axis}_win={win}_kernel={kernel}.npy"
+        file_path = f"dsff/dsff_ginue_N={N}_axis={axis}_win={win}_kernel={kernel}_α={α}.npy"
     elif kernel == 'gau':
-        file_path = f"dsff/dsff_ginue_j={j}_M={M}_N={N}_β={β}_axis={axis}_σ={σ}_kernel={kernel}.npy"
+        file_path = f"dsff/dsff_ginue_N={N}_axis={axis}_σ={σ}_kernel={kernel}_α={α}.npy"
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         dsff = np.zeros_like(tlist, dtype=np.float64)
-        eigvals = ginue_evals_fun(j, M, β, traj_ind=0)
+        eigvals = ginue_evals_fun(N, traj_ind=0)
         for i, t in tqdm(enumerate(tlist), total=len(tlist)):
             if axis == 'imag':
                 exp_sum = np.sum(np.exp(-(β-1j*t)*(np.imag(eigvals))))

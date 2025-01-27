@@ -7,15 +7,14 @@ import numpy as np
 
 # SET UP THE CALCULATION
 
-ω  = 1.0; ω0 = 1.0; j = 5; v = 30; γ=1.0; β=0; M_arr = [30] 
+ω  = 1.0; ω0 = 1.0; j = 5; v = 30; γ=2.0; β=0; M_arr = [30] ; α=0.5
 gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2,2)}
 win=500; σ = 1
 axis = 'imag'
 # axis = 'real'
 kernel = 'rect' 
 # kernel = 'gau'
-g_arr = np.round(np.arange(0.2,0.55,0.1),2)
-# g_arr = np.round(np.arange(0.6,0.95,0.1),2)
+g_arr = np.round(np.arange(0.1,1.05,0.05),2)
 # Number of random matrices to average over in GOE and GUE
 num_realizations = 1000
 

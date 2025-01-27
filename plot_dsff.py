@@ -82,13 +82,13 @@ def plot_dicke_dsff(tlist, dsff_ginue):
         num_rows = (num_g + 1) // 2
         plt.figure(figsize=(10,5*num_rows))
         for g_ind, g in enumerate(g_arr):
-            tlist, dsff, dsff_raw = dsff_fun(ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel)
+            tlist, dsff, dsff_raw = dsff_fun(ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α)
             plt.subplot(num_rows,2,g_ind+1)
             plt.title(f"g={g}")
             plt.xscale('log')
             plt.yscale('log')
             plt.xlabel("Time"); plt.ylabel("sff")
-            plt.xlim(1e-3,1e3)#; plt.ylim(1e-12,2e0)
+            # plt.xlim(1e-3,1e3)#; plt.ylim(1e-12,2e0)
             # Plot raw data
             plt.plot(tlist,dsff_raw,color='0.8')
             # Plot moving average
@@ -118,9 +118,9 @@ def plot_ramp_slope(m_arr, m_ginue):
     plt.show()
 
 def main():
-    parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist_ginue, tlist, axis, win, σ, kernel)
+    parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α)
     for M in M_arr:
-        tlist_ginue1, dsff_ginue = dsff_ginue_fun(j, M, β, tlist_ginue, tlist, axis, win, σ, kernel)
+        tlist_ginue1, dsff_ginue = dsff_ginue_fun(ω, ω0, j, M, β, tlist_ginue, tlist, g_arr[0], γ, axis, win, σ, kernel, α)
         plot_dicke_dsff(tlist_ginue1, dsff_ginue)
 
     return 0
