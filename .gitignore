@@ -6,6 +6,8 @@ plots/
 SFF/
 temp/
 evals_par_Lop/
+evals_GinOE/
+evals_GinUE/
 
 # Ignore Python cache files
 __pycache__/
