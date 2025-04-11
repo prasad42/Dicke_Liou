@@ -75,33 +75,32 @@ def select_ramp_fun(tlist, dsff):
 
     return m, ramp_start_idx, ramp_end_idx
 
-def plot_dicke_dsff(tlist, dsff_ginue):
-    
-    for M in M_arr:
-        num_g = len(g_arr)
-        num_rows = (num_g + 1) // 2
-        plt.figure(figsize=(10,5*num_rows))
-        for g_ind, g in enumerate(g_arr):
-            tlist, dsff, dsff_raw = dsff_fun(ω, ω0, j, M, g, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α)
-            plt.subplot(num_rows,2,g_ind+1)
-            plt.title(f"g={g}")
-            plt.xscale('log')
-            plt.yscale('log')
-            plt.xlabel("Time"); plt.ylabel("sff")
-            # plt.xlim(1e-3,1e3)#; plt.ylim(1e-12,2e0)
-            # Plot raw data
-            plt.plot(tlist,dsff_raw,color='0.8')
-            # Plot moving average
-            plt.plot(tlist,dsff,label=f"Dicke Model")
-            # Plot GinUE
-            plt.plot(tlist,dsff_ginue,'--k',label=f"GinUE")
-            plt.tight_layout()
-            plt.grid(True)
-        if not os.path.exists("plots"):
-            os.mkdir("plots")
-        plt.legend()
-        plt.savefig(f'plots/Dicke_dsff_j={j}_M={M}_β={β}_gc={gc}_axis={axis}.png')
-        plt.show()
+def plot_dicke_dsff():
+    num_g = len(g_arr)
+    num_rows = (num_g + 1) // 2
+    plt.figure(figsize=(10,5*num_rows))
+    for g_ind, g in enumerate(g_arr):
+        tlist2, dsff, dsff_raw, N = dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win, σ, kernel, α, unfolding)
+        tlist1, dsff_ginue = dsff_ginue_fun(N, β, tlist, ntraj, unfolding)
+        plt.subplot(num_rows,2,g_ind+1)
+        plt.title(f"g={g}")
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel("Time"); plt.ylabel("sff")
+        plt.xlim(1e-3,1e3); plt.ylim(1e-11,2e0)
+        # Plot raw data
+        plt.plot(tlist2,dsff_raw,color='0.8')
+        # Plot GinUE
+        plt.plot(tlist1,dsff_ginue,'--k',label=f"GinUE")
+        # Plot moving average
+        plt.plot(tlist2,dsff,label=f"Dicke Model")
+        plt.tight_layout()
+        plt.grid(True)
+    if not os.path.exists("plots"):
+        os.mkdir("plots")
+    plt.legend()
+    plt.savefig(f'plots/Dicke_dsff_j={j}_M={M_arr[0]}_β={β}_γ={γ}_gc={gc}.png')
+    plt.show()
 
     return 0
 
@@ -114,14 +113,12 @@ def plot_ramp_slope(m_arr, m_ginue):
     plt.axhline(m_ginue, linestyle='--', color="k", label="GinUE")
     plt.legend()
     plt.grid()
-    plt.savefig(f"plots/Dicke_dsff_j={j}_slope_ramp_vs_g_axis={axis}")
+    plt.savefig(f"plots/Dicke_dsff_j={j}_slope_ramp_vs_g")
     plt.show()
 
 def main():
-    parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist_ginue, tlist, axis, win, σ, kernel, α)
-    for M in M_arr:
-        tlist_ginue1, dsff_ginue = dsff_ginue_fun(ω, ω0, j, M, β, tlist_ginue, tlist, g_arr[0], γ, axis, win, σ, kernel, α)
-        plot_dicke_dsff(tlist_ginue1, dsff_ginue)
+    # parallel_SFF(ω, ω0, j, M_arr, g_arr, β, γ, tlist, axis, win, σ, kernel, α, unfolding)
+    plot_dicke_dsff()
 
     return 0
 
