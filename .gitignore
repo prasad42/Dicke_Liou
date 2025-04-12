@@ -8,6 +8,7 @@ temp/
 evals_par_Lop/
 # evals_GinOE/
 evals_GinUE/
+dsff/
 
 # Ignore Python cache files
 __pycache__/
