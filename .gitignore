@@ -6,9 +6,14 @@ plots/
 SFF/
 temp/
 evals_par_Lop/
-# evals_GinOE/
+evals_GinOE/
 evals_GinUE/
 dsff/
+spacings/
+mask_cache/
+local_density/
+evals_Poi/
+converged_eigvals/
 
 # Ignore Python cache files
 __pycache__/

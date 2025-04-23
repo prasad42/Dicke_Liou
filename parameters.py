@@ -11,27 +11,25 @@ import numpy as np
 model = "anis"
 model = None
 
-ω  = 1.0; ω0 = 1.0; j = 5; v = 30; γ=2.2; β=0; M_arr = [8, 6, 4]; 
-# M_arr = [4]
+ω  = 1.0; ω0 = 1.0; j = 5; v = 30; β=0; M_arr = [40, 30, 20]; 
+M_arr = [8, 6, 4]
+# M_arr = [20]
 
-win=500; σ = 1
-α = 0.8 # Filtering criterion
+win=500
 
-kernel = 'rect'
-# kernel = 'gau'
+# Define gamma values
+γ_arr = [2.2, 4.4, 6.6]
+γ_arr = [2.2]
 
-g_arr = np.round(np.arange(0.1,1.05,0.05),2)
-# g_arr = [0.2, 0.4, 0.6, 0.7]
-# g_arr = [0.7, 0.8, 0.9, 1.0]
-# g_arr = [0.2, 0.5, 0.7, 1.0]
-g_arr = [0.2, 1.0]
-# g_arr = [0.1]
+# Define g ranges for each gamma
+g_arr = {
+	2.2: np.round(np.arange(0.1, 1.05, 0.1), 2),
+	4.4: np.round(np.arange(0.1, 2.05, 0.1), 2),
+	6.6: np.round(np.arange(0.1, 2.05, 0.1), 2)
+}
 
-# Unfolding for DSFF
-unfolding = 'yes'
-# unfolding = 'no'
-
-gc=np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2,2)
+# Calculate gc for each gamma
+gc_arr = np.array([np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2, 2) for γ in γ_arr])
 
 ntraj = 20
 

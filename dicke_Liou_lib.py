@@ -20,6 +20,9 @@ from scipy.integrate import quad
 from scipy.sparse import coo_matrix
 from scipy.interpolate import interp1d
 from scipy.integrate import cumulative_trapezoid
+from numpy.polynomial import Polynomial
+from scipy.integrate import simpson
+from scipy.interpolate import interp1d
 
 def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
     '''
@@ -66,8 +69,8 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
 
         np.save(file_path,eigvals)
 
-    else:
-        print(f"{file_path} already exists.")
+    # else:
+        # print(f"{file_path} already exists.")
     Lop_even_eigvals = np.load(file_path)
 
     return Lop_even_eigvals
@@ -198,7 +201,7 @@ def create_parity_block_sparse(arr, M, j, cache_dir="mask_cache"):
 
     return selected_matrix
 
-def filter_eigenvals(j, M, γ, α, eigvals):
+def filter_eigenvals(j, M, γ, eigvals, α = 0.8):
     """
     Filters eigenvalues based on the described condition:
     - Find the eigenvalue with the highest imaginary part.
@@ -221,19 +224,45 @@ def filter_eigenvals(j, M, γ, α, eigvals):
 
     return np.array(filtered_eigvals)
 
-def find_converged_eigvals(eigvals_list, rel_tol=0.1, abs_tol=1e-6):
+def find_converged_eigvals(eigvals_list, j=None, M_arr=None, γ=None, g=None, rel_tol=0.1, abs_tol=1e-6, save_dir="converged_eigvals"):
     """
     Identify eigenvalues stable across cutoffs using:
     - Relative tolerance for magnitude
     - Absolute tolerance for near-zero eigenvalues
+    Optionally saves/loads converged eigenvalues to/from disk using parameters j, M_arr, γ, g.
     """
+    if all(param is not None for param in [j, M_arr, γ, g]):
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(
+            save_dir,
+            f"converged_j={j}_M={M_arr[0]}_γ={γ}_g={g}_reltol={rel_tol}_abstol={abs_tol}.npy"
+        )
+        if os.path.exists(file_path):
+            print(f"Loading converged eigenvalues from {file_path}")
+            return np.load(file_path)
+    else:
+        file_path = None
 
-    M40_evals = eigvals_list[0]
-    M30_evals = eigvals_list[1]
-    M20_evals = eigvals_list[2]
-    
+    # M40_evals = eigvals_list[0]
+    # M30_evals = eigvals_list[1]
+    # M20_evals = eigvals_list[2]
+
+    M40_evals = np.sort_complex(eigvals_list[0])
+    M30_evals = np.sort_complex(eigvals_list[1])
+    M20_evals = np.sort_complex(eigvals_list[2])
+
+    min_len = min(len(M40_evals), len(M30_evals), len(M20_evals))
+    truncated_eigvals_list = np.array([arr[-min_len:] for arr in [M40_evals, M30_evals, M20_evals]])
+
+    M40_evals = truncated_eigvals_list[0]
+    M30_evals = truncated_eigvals_list[1]
+    M20_evals = truncated_eigvals_list[2]
+    print(f"Truncated eigenvalues to {min_len} elements.")
+
     converged = []
     
+    print(f"{file_path} does not exist, generating data.")
+    print(f"Finding converged eigenvalues...")
     for eigval40 in tqdm(M40_evals):
         # Find nearest neighbors in lower cutoffs
         eigval30 = find_nearest(eigval40, M30_evals)
@@ -253,14 +282,33 @@ def find_converged_eigvals(eigvals_list, rel_tol=0.1, abs_tol=1e-6):
             if rel_diff30 < rel_tol and rel_diff20 < rel_tol:
                 converged.append(eigval40)
                 
-    return np.array(converged)
+    converged = np.array(converged)
+    if file_path is not None:
+        np.save(file_path, converged)
+
+    return converged
 
 def find_nearest(target, array):
     """Helper function to find closest eigenvalue"""
     return array[np.argmin(np.abs(array - target))]
 
-def compute_nearest_neighbor_spacings(eigvals):
-    """Computes the nearest-neighbor spacings for a given set of complex eigenvalues."""
+def compute_nearest_neighbor_spacings(eigvals, j=None, M=None, γ=None, g=None, save_dir="spacings"):
+    """
+    Computes the nearest-neighbor spacings for a given set of complex eigenvalues.
+    Optionally saves/loads spacings to/from disk using parameters j, M, γ, g.
+    """
+    if all(param is not None for param in [j, M, γ, g]):
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(
+            save_dir,
+            f"spacings_j={j}_M={M}_γ={γ}_g={g}.npy"
+        )
+        if os.path.exists(file_path):
+            print(f"Loading spacings from {file_path}")
+            return np.load(file_path)
+    else:
+        file_path = None
+
     N = len(eigvals)
     spacings = np.zeros(N)
     print("Computing the Nearest Neighour Distance")
@@ -269,10 +317,28 @@ def compute_nearest_neighbor_spacings(eigvals):
         distances[i] = np.inf  # Ignore self-distance
         spacings[i] = np.min(distances)  # Find the nearest neighbor
 
+    if file_path is not None:
+        np.save(file_path, spacings)
+
     return spacings
 
-def compute_local_density(eigvals, spacings, sigma=None):
-    """Estimates the local density ρ_av(E)."""
+def compute_local_density(eigvals, spacings, sigma=None, j=None, M=None, γ=None, g=None, save_dir="local_density"):
+    """
+    Estimates the local density ρ_av(E).
+    Optionally saves/loads density to/from disk using parameters j, M, γ, g.
+    """
+    if all(param is not None for param in [j, M, gamma, g]):
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(
+            save_dir,
+            f"local_density_j={j}_M={M}_γ={γ}_g={g}.npy"
+        )
+        if os.path.exists(file_path):
+            print(f"Loading local density from {file_path}")
+            return np.load(file_path)
+    else:
+        file_path = None
+
     N = len(eigvals)
     s_tilde = np.mean(spacings) # Global Mean spacing
 
@@ -283,92 +349,137 @@ def compute_local_density(eigvals, spacings, sigma=None):
     prefactor = 1 / (2 * np.pi * sigma**2 * N)
 
     print("Computing the local density")
-    for i, E in tqdm(enumerate(eigvals)):
+    for i, E in tqdm(enumerate(eigvals), total=len(eigvals)):
         density[i] = prefactor * np.sum(np.exp(-np.abs(E - eigvals)**2 / (2 * sigma**2)))
+
+    if file_path is not None:
+        np.save(file_path, density)
 
     return density
 
-def unfold_spacings(eigvals):
+def unfold_spacings(eigvals, j=None, M=None, γ=None, g=None):
     """Performs the unfolding procedure following equation (B1) in PhysRevA.105.L050201."""
     eigvals = np.sort(eigvals)
-    spacings = compute_nearest_neighbor_spacings(eigvals)[:-1]
+    spacings = compute_nearest_neighbor_spacings(eigvals, j = j, M = M, γ = γ, g = g)[:-1]
 
-    local_density = compute_local_density(eigvals[:-1], spacings)  # Compute density only for spacing indices
+    local_density = compute_local_density(eigvals[:-1], spacings, j = j, M = M, γ = γ, g = g)  # Compute density only for spacing indices
     unfolded_spacings = spacings * np.sqrt(local_density)  # Apply unfolding
     s_bar = np.mean(unfolded_spacings)  # Compute global mean level spacing
-    print(f"Unfolded spacing: {s_bar}")
+    # print(f"Unfolded spacing: {s_bar}")
     unfolded_spacings = unfolded_spacings/s_bar # Normalise
-    print(f"Unfolded spacing After Normalisation {np.mean(unfolded_spacings)}")
+    # print(f"Unfolded spacing After Normalisation {np.mean(unfolded_spacings)}")
 
     return unfolded_spacings
 
-def unfold_spectrum(eigvals):
+def unfold_spectrum(eigvals, num_y_bins=50, poly_order=6):
     """
-    Applies unfolding: x' = ∫_{-∞}^{x} ρ_av(t, y) dt, keeping y' = y.
+    Unfold eigenvalues using a polynomial fit to the cumulative counting function
+    (number variance), applied slice-wise along the imaginary axis.
 
     Args:
     - eigvals: array of complex eigenvalues.
-    - density: local density estimate from compute_local_density (same shape).
+    - num_y_bins: number of bins along the imaginary axis.
+    - poly_order: degree of the polynomial to fit to the counting function.
 
     Returns:
     - unfolded_eigvals: array of complex unfolded eigenvalues.
     """
     eigvals = np.array(eigvals)
-    spacings = compute_nearest_neighbor_spacings(eigvals)[:-1]
-    density = compute_local_density(eigvals, spacings)
-
     x = np.real(eigvals)
     y = np.imag(eigvals)
-
     unfolded_x = np.zeros_like(x)
 
-    print("Unfolding spectrum using cumulative density")
+    y_bins = np.linspace(y.min(), y.max(), num_y_bins + 1)
+    bin_indices = np.digitize(y, y_bins) - 1
 
-    # For each unique y (or a band), perform unfolding along x
-    # Since eigenvalues can be dense, we sort by x at each y
-    # and integrate the density to get x'
+    for i in range(num_y_bins):
+        mask = bin_indices == i
+        if np.sum(mask) < poly_order + 2:
+            continue
 
-    sorted_indices = np.argsort(x)
-    x_sorted = x[sorted_indices]
-    y_sorted = y[sorted_indices]
-    density_sorted = density[sorted_indices]
+        x_bin = x[mask]
+        y_bin = y[mask]
 
-    # Perform cumulative integral of the density to get x'
-    x_prime_sorted = cumulative_trapezoid(density_sorted, x_sorted, initial=0)
+        # Sort x within this y-bin
+        sort_idx = np.argsort(x_bin)
+        x_sorted = x_bin[sort_idx]
+        count_indices = np.arange(1, len(x_sorted) + 1)
 
-    # Interpolation for smoother mapping
-    interp_func = interp1d(x_sorted, x_prime_sorted, bounds_error=False, fill_value="extrapolate")
-    unfolded_x = interp_func(x)
+        # Fit polynomial to the counting function
+        coeffs = np.polyfit(x_sorted, count_indices, deg=poly_order)
+        cumulative_poly = np.poly1d(coeffs)
+
+        # Evaluate unfolded x values using the fit
+        unfolded_x[mask] = cumulative_poly(x_bin)
 
     unfolded_eigvals = unfolded_x + 1j * y
 
     return unfolded_eigvals
 
+def transform_spectrum(eigvals, A=-1j, beta=0.5, sigma=None):
+    """
+    transform the complex spectrum using the transformation:
+        z -> A * (z - z0)^beta
+
+    Args:
+    - eigvals (array-like): Array of complex eigenvalues.
+    - A (complex): Scaling factor (default: -i).
+    - beta (float): Exponent for the transformation (default: 0.5).
+    - sigma (float): Standard deviation for local density estimation (optional).
+
+    Returns:
+    - unfolded_eigvals (array-like): Unfolded eigenvalues.
+    """
+    eigvals = np.array(eigvals)
+
+    # Compute spacings
+    spacings = compute_nearest_neighbor_spacings(eigvals)
+
+    # Compute local density
+    density = compute_local_density(eigvals, spacings, sigma=sigma)
+
+    # Determine z0 as the eigenvalue corresponding to the maximum density
+    z0 = eigvals[np.argmax(density)]
+    # Shifted eigenvalues
+    z_shifted = eigvals - z0
+
+    # Polar form
+    r = np.abs(z_shifted)
+    theta = np.angle(z_shifted)
+    theta = np.where(theta < 0, theta + 2 * np.pi, theta)  # Optional: pick the (0, 2π) branch
+
+    # Single-valued power
+    z_beta = r ** beta * np.exp(1j * beta * theta)
+
+    # Apply scaling
+    unfolded_eigvals = A * z_beta
+
+    return unfolded_eigvals
+
+
+def unfold_poly(eigvals, deg=6):
+    """
+    Unfolds the eigenvalue spectrum polynomially and returns the unfolded spectrum.
+
+    Args:
+    - eigvals (array-like): List of eigenvalues.
+    - deg (int): Degree of polynomial for fitting.
+
+    Returns:
+    - unfolded (np.ndarray): Unfolded spectrum.
+    """
+    eigvals = np.sort(eigvals)  # Ensure they are sorted
+    indices = np.arange(1, len(eigvals) + 1)
+
+    coeffs = np.polyfit(eigvals, indices, deg)
+    poly = np.poly1d(coeffs)
+
+    return poly(eigvals)
+
 def plot_spectrum(eigvals):
     plt.xlabel("Re E")
     plt.ylabel("Im E")
     plt.scatter(eigvals.real, eigvals.imag, marker=".")
-
-def plot_unfolding(original_eigvals, unfolded_eigvals, g):
-    """
-    Plot the original and unfolded eigenvalues.
-    """
-    plt.subplot(1, 2, 1)
-    plt.scatter(np.real(original_eigvals), np.imag(original_eigvals), alpha=0.5, label=f'Original with g={g}')
-    plt.xlabel("Real Part")
-    plt.ylabel("Imaginary Part")
-    plt.title("Original Eigenvalues")
-    plt.legend()
-    
-    plt.subplot(1, 2, 2)
-    plt.scatter(np.real(unfolded_eigvals), np.imag(unfolded_eigvals), alpha=0.5, label=f'Unfolded with g={g}', color='red')
-    plt.xlabel("Real Part")
-    plt.ylabel("Imaginary Part")
-    plt.title("Unfolded Eigenvalues")
-    plt.legend()
-    
-    plt.tight_layout()
-    plt.show()
 
 def p_2d_poissonian(s):
     return (np.pi / 2) * s * np.exp(-np.pi * s**2 / 4)
@@ -424,12 +535,60 @@ def plot_ps_distribution(spacings, bins=60):
     # Plot P(s) distribution
     plt.hist(bin_centers, bins=bins, weights=hist, histtype='step', label='P(s) distribution')
 
+    plt.xlim(0, 3)
+
     # Comparison with 2D Poissonian and GinUE distributions
     s_vals = np.linspace(0, 3, 1000)
     plt.plot(s_vals, p_2d_poissonian(s_vals), label='2D Poisson', linestyle='dashed')
     plt.plot(s_vals, p_ginue(s_vals), label='GinUE', linestyle='dotted')
 
-def compute_dsff_theta_avg(eigvals, β, tlist, thetas):
+def compute_eta(unfolded_spacings, bins=100):
+    """
+    Compute the spectral measure η using your histogram data
+    and analytic expressions for p_{2D-P}(s) and p_{GinUE}(s).
+
+    Parameters
+    ----------
+    unfolded_spacing : array-like
+        The unfolded spacing data from your system (not histogrammed yet).
+    
+    bins : int
+        Number of bins to use for histogram of p(s).
+
+    Returns
+    -------
+    eta : float
+        Spectral measure η.
+    """
+
+    # At module level or during setup, compute and store once:
+    fixed_s_vals = np.linspace(0, 3, 1000)
+    p_poisson_fixed = p_2d_poissonian(fixed_s_vals)
+    p_ginue_fixed = p_ginue(fixed_s_vals)
+    eta_denominator = simpson((p_ginue_fixed - p_poisson_fixed)**2, x=fixed_s_vals)
+
+    # Histogram your observed P(s)
+    hist, bin_edges = np.histogram(unfolded_spacings, bins=bins, density=True)
+    s_centres = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # Interpolation range (use only the meaningful support)
+    s_vals = np.linspace(0, np.max(s_centres), 1000)
+
+    # Interpolate p(s)
+    f_ps = interp1d(s_centres, hist, kind='linear', bounds_error=False, fill_value=0.0)
+
+    # Evaluate all distributions on common support
+    ps_interp = f_ps(s_vals)
+    p_poisson_vals = p_2d_poissonian(s_vals)
+    p_ginue_vals = p_ginue(s_vals)
+
+    # Compute numerator and denominator using Simpson's rule
+    numerator = simpson((ps_interp - p_poisson_vals)**2, x = s_vals)
+    eta = numerator / eta_denominator
+    
+    return eta
+
+def compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding):
     """
     Compute the DSFF averaged over multiple projection angles θ.
     
@@ -442,6 +601,7 @@ def compute_dsff_theta_avg(eigvals, β, tlist, thetas):
     Returns:
     - Averaged DSFF over all thetas.
     """
+    # eigvals = transform_spectrum(eigvals)
     eigvals = np.array(eigvals)
     x = np.real(eigvals)
     y = np.imag(eigvals)
@@ -449,9 +609,20 @@ def compute_dsff_theta_avg(eigvals, β, tlist, thetas):
     tlist = np.array(tlist)
     dsff_avg = np.zeros(len(tlist), dtype=np.float64)
     
-    for theta in tqdm(thetas):
+    for theta_ind, theta in enumerate(thetas):
+        print(f"theta_ind = {theta_ind} of {len(thetas)}")
         proj_eigs = x * np.cos(theta) + y * np.sin(theta)
         
+        if unfolding == "yes":
+            eigvals = unfold_spectrum(eigvals)
+            x = np.real(eigvals)
+            y = np.imag(eigvals)
+            proj_eigs = x * np.cos(theta) + y * np.sin(theta)   
+        elif unfolding == "projected unfolding":
+            proj_eigs = unfold_poly(proj_eigs)
+        elif unfolding == "no":
+            proj_eigs = proj_eigs
+
         norm = np.sum(np.exp(-β * proj_eigs))  # scalar
 
         for i, t in enumerate(tlist):
@@ -463,52 +634,60 @@ def compute_dsff_theta_avg(eigvals, β, tlist, thetas):
 
     return dsff_avg
 
-def dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win, σ, kernel, α, unfolding, n_theta=1):
+def dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win = 100, σ = 1, kernel = "rect", α = 0.8, unfolding="no", n_theta=10):
     """
     Computes angle-averaged DSFF for multiple M values or a single one.
     """
 
     os.makedirs("dsff", exist_ok=True)
-    thetas = np.linspace(np.pi / 3  , np.pi / 2, n_theta)
 
+    # Range of angles over which we average the DSFF
+    θ1 = np.pi / 2.1
+    θ2 = np.pi / 2
+    thetas = np.linspace(θ1, θ2, n_theta)
+
+    prefix = f"j={j}_M={M_arr[0]}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2, 2)}_β={β}_g={g}_γ={γ}_θ={np.round(θ2,2)}_ntheta={n_theta}"
+
+    # Selecting only converged eigenvalues
     if len(M_arr) == 3:
         eigvals_list = []
         for M in M_arr:
             eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ)
             eigvals_list.append(eigvals)
-        eigvals = find_converged_eigvals(eigvals_list)
+        eigvals = find_converged_eigvals(eigvals_list, j=j, M_arr=M_arr, γ=γ, g=g)
     else:
         eigvals = Dicke_Lop_even_evals_fun(ω, ω0, j, M_arr[0], g, γ)
-        eigvals = filter_eigenvals(j, M_arr[0], γ, α, eigvals)
+        eigvals = filter_eigenvals(j, M_arr[0], γ, eigvals)
+        prefix += f"_α={np.round(α,2)}"
 
+    # Unfolding the spectrum
     if unfolding == 'yes':
-        eigvals = unfold_spectrum(eigvals)
-        suffix2 = "unfolded"
-    else: 
-        suffix2 = "folded"
+        suffix = "unfolded"
+    elif unfolding == 'projected unfolding':
+        suffix = "projected_unfolding"
+    elif unfolding == 'no':
+        suffix = "folded"
 
     N = len(eigvals)
-
-    suffix = f"j={j}_M={M_arr[0]}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2, 2)}_β={β}_g={g}_γ={γ}_α={np.round(α,2)}"
-    suffix += f"_ntheta={n_theta}"
-
+    
+    # Averaging the DSFF
     if kernel == 'rect':
-        file_path = f"dsff/dsff_thetaavg_{suffix}_kernel={kernel}_win={win}_{suffix2}.npy"
-        file_path_raw = f"dsff/dsff_thetaavg_raw_{suffix}_kernel={kernel}_win={win}_{suffix2}.npy"
+        file_path = f"dsff/dsff_{prefix}_kernel={kernel}_win={win}_{suffix}.npy"
+        file_path_raw = f"dsff/dsff_raw_{prefix}_kernel={kernel}_win={win}_{suffix}.npy"
     elif kernel == 'gau':
-        file_path = f"dsff/dsff_thetaavg_{suffix}_kernel={kernel}_σ={σ}_{suffix2}.npy"
-        file_path_raw = f"dsff/dsff_thetaavg_raw_{suffix}_kernel={kernel}_σ={σ}_{suffix2}.npy"
+        file_path = f"dsff/dsff_{prefix}_kernel={kernel}_σ={σ}_{suffix}.npy"
+        file_path_raw = f"dsff/dsff_raw_{prefix}_kernel={kernel}_σ={σ}_{suffix}.npy"
 
+    # Computing or loading the DSFF
     if not os.path.exists(file_path) or not os.path.exists(file_path_raw):
-        print(f"Computing DSFF for θ ∈ [0, π/2], n_theta = {n_theta}")
-        dsff_raw = compute_dsff_theta_avg(eigvals, β, tlist, thetas)
+        print(f"{file_path} does not exist, generating data.")
+        print(f"Computing DSFF averaged over θ ∈ [{θ1}, {θ2}], n_theta = {n_theta}")
+        dsff_raw = compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding)
         np.save(file_path_raw, dsff_raw)
-
         if kernel == 'rect':
             tlist_dsff = dsff_rl_rect_fun(tlist, dsff_raw, win)
         elif kernel == 'gau':
             tlist_dsff = dsff_rl_gau_fun(tlist, dsff_raw, σ)
-        
         np.save(file_path, tlist_dsff)
     else:
         tlist_dsff = np.load(file_path)
@@ -598,8 +777,8 @@ def ginue_evals_fun(N, traj_ind):
             eigvals = np.load(f"evals_GinUE/evals_N={25397}_traj_ind={traj_ind}.npy")
             eigvals = extract_inner_circle(eigvals, N)
             np.save(file_path,eigvals)
-        else:
-            print(f"{file_path} already exists.")
+        # else:
+            # print(f"{file_path} already exists.")
         eigvals = np.load(file_path)
     else:
         if not os.path.exists(file_path):
@@ -610,81 +789,152 @@ def ginue_evals_fun(N, traj_ind):
             time_end = time.perf_counter()
             print(f"Scipy: {time_end-time_start}, eigvals: {np.shape(eigvals)}")
             np.save(file_path,eigvals)
-        else:
-            print(f"{file_path} already exists.")
+        # else:
+            # print(f"{file_path} already exists.")
         
         eigvals = np.load(file_path)
 
     return eigvals
 
-def compute_dsff(eigvals, β, tlist):
-    """
-    Compute the DSFF for the given eigenvalues and time list using a series calculation.
-    """
-
-    # Convert tlist to a NumPy array
-    tlist = np.array(tlist)  # Shape (T,)
-
-    # Initialize DSFF array
-    dsff = np.zeros(len(tlist), dtype=np.float64)  # Shape (T,)
-
-    # Compute DSFF as a series sum over tlist
-    for i, t in tqdm(enumerate(tlist),total=len(tlist)):
-        exp_term = np.exp(-(β - 1j * t) * np.real(eigvals))
-
-        # Compute SFF for each time step
-        sff = np.abs(np.sum(exp_term))**2  # Scalar
-        norm = np.sum(np.exp(-β * eigvals))  # Scalar normalization
-
-        # Normalize and store result
-        dsff[i] = sff / (norm**2)  # Store DSFF value
-
-    return dsff
-
-def compute_single_traj(traj_ind, N, β, tlist, unfolding):
+def compute_single_traj(traj_ind, N, β, tlist, unfolding, thetas) :
     """Compute DSFF for a single trajectory."""
-    if unfolding == "yes":
-        eigvals = ginue_evals_fun(N, traj_ind)
-        eigvals = unfold_spectrum(eigvals)
-    else:
-        eigvals = ginue_evals_fun(N, traj_ind)
+    
+    print(f"traj_ind: {traj_ind}, N: {N}, β: {β}")
 
-    return compute_dsff(eigvals, β, tlist)
+    eigvals = ginue_evals_fun(N, traj_ind)
+
+    return compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding)
 
 def compute_single_traj_wrapper(args):
     """Wrapper function to unpack arguments for multiprocessing."""
-    traj_ind, N, β, tlist, unfolding = args
-    return compute_single_traj(traj_ind, N, β, tlist, unfolding)
+    traj_ind, N, β, tlist, unfolding, thetas = args
+    return compute_single_traj(traj_ind, N, β, tlist, unfolding, thetas)
 
-def dsff_ginue_fun(N, β, tlist, ntraj, unfolding):
+def dsff_ginue_fun(N, β, tlist, ntraj, unfolding = 'no'):
     """
     Compute the Spectral Form Factor (SFF) for GOE matrices of size N,
     averaged over `ntraj` random GOE matrices using multiprocessing.
     """
     os.makedirs("dsff", exist_ok=True)
 
-    N = 10
+    print(f"unfolding: {unfolding}, N: {N}, ntraj: {ntraj}")
 
-    file_path = f"dsff/dsff_ginue_N={N}_ntraj={ntraj}.npy"
-    if unfolding == "yes":
-        file_path = f"dsff/dsff_ginue_N={N}_ntraj={ntraj}_unfolded.npy"
+    θ1 = np.pi / 2.1
+    θ2 = np.pi / 2
+    n_theta = 10
+    thetas = np.linspace(θ1, θ2, n_theta)
+
+    file_path = f"dsff/dsff_ginue_N={N}_ntraj={ntraj}_θ={np.round(θ2,2)}.npy"
+    if unfolding == 'yes':
+        file_path += f"_unfolded.npy"
+    elif unfolding == 'projected unfolding':
+        file_path += f"_projected_unfolding.npy"
+    elif unfolding == 'no':
+        file_path += f"_folded.npy"
 
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         if ntraj==1:
             traj_ind = 0
-            dsff = compute_single_traj(traj_ind, N, β, tlist, unfolding)
+            dsff = compute_single_traj(traj_ind, N, β, tlist, unfolding, thetas)
             tlist_rl, dsff_rl = dsff_rl_rect_fun(tlist, dsff, win=50)
             np.save(file_path, np.array([tlist_rl, dsff_rl]))
         else:
             # Set number of processes
             n_jobs = min(mp.cpu_count()-2, ntraj)
-            args_list = [(traj_ind, N, β, tlist, unfolding) for traj_ind in range(ntraj)]
+            args_list = [(traj_ind, N, β, tlist, unfolding, thetas) for traj_ind in (range(ntraj))]
             # Use multiprocessing Pool
             with mp.Pool(processes=n_jobs) as pool:
-                dsff_results = list(tqdm(pool.imap(compute_single_traj_wrapper, args_list), total=ntraj))
-            print(f"dsff_results shape: {np.shape(dsff_results)}")
+                dsff_results = list(pool.imap(compute_single_traj_wrapper, args_list))
             # Compute the average over all trajectories
+            dsff = np.sum(dsff_results, axis=0) / ntraj
+            np.save(file_path, dsff)
+    else:
+        print(f"{file_path} already exists.")
+        if ntraj==1:
+            tlist_rl, dsff_rl = np.load(file_path)
+        else:
+            dsff = np.load(file_path)
+
+    if ntraj==1:
+        return tlist_rl, dsff_rl
+    else: 
+        return tlist, dsff
+
+def poissonian_evals_fun(N, traj_ind, radius=1.0):
+    """
+    Generate N uncorrelated complex eigenvalues uniformly distributed inside a disk in the complex plane.
+    
+    Parameters:
+    - N: number of eigenvalues
+    - radius: radius of the disk (default: 1.0)
+    
+    Returns:
+    - eigenvalues: complex numpy array of length N
+    """
+    
+    # N: Size of the GinUE matrix.
+    os.makedirs("evals_Poi",exist_ok=True)
+    file_path = f"evals_Poi/evals_N={N}_traj_ind={traj_ind}.npy"
+
+    if not os.path.exists(file_path):
+        print(f"{file_path} does not exist, generating data.")
+        r = radius * np.sqrt(np.random.uniform(0, 1, N))  # square-root for uniform disk
+        theta = np.random.uniform(0, 2*np.pi, N)
+        eigvals = r * np.exp(1j * theta)
+        np.save(file_path,eigvals)
+    else:
+        print(f"{file_path} already exists.")
+    eigvals = np.load(file_path)
+    
+    return eigvals
+
+def compute_single_traj_poissonian(traj_ind, N, β, tlist, unfolding, thetas) :
+    """Compute DSFF for a single Poissonian trajectory."""
+
+    print(f"traj_ind: {traj_ind}, N: {N}, β: {β}")
+    eigvals = poissonian_evals_fun(N, traj_ind)
+    return compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding)
+
+def compute_single_traj_poissonian_wrapper(args):
+    """Wrapper function to unpack arguments for multiprocessing."""
+    traj_ind, N, β, tlist, unfolding, thetas = args
+    return compute_single_traj_poissonian(traj_ind, N, β, tlist, unfolding, thetas)
+
+def dsff_poissonian_fun(N, β, tlist, ntraj, unfolding = 'no'):
+    """
+    Compute the Spectral Form Factor (SFF) for Poissonian matrices of size N,
+    averaged over `ntraj` random matrices using multiprocessing.
+    """
+    os.makedirs("dsff", exist_ok=True)
+
+    θ1 = np.pi / 2.1
+    θ2 = np.pi / 2
+    n_theta = 10
+    thetas = np.linspace(θ1, θ2, n_theta)
+
+    print(f"unfolding: {unfolding}, N: {N}, ntraj: {ntraj}")
+
+    file_path = f"dsff/dsff_poissonian_N={N}_ntraj={ntraj}_θ={np.round(θ2,2)}.npy"
+    if unfolding == 'yes':
+        file_path += f"_unfolded.npy"
+    elif unfolding == 'projected unfolding':
+        file_path += f"_projected_unfolding.npy"
+    elif unfolding == 'no':
+        file_path += f"_folded.npy"
+
+    if not os.path.exists(file_path):
+        print(f"{file_path} does not exist, generating data.")
+        if ntraj==1:
+            traj_ind = 0
+            dsff = compute_single_traj_poissonian(traj_ind, N, β, tlist, unfolding, thetas)
+            tlist_rl, dsff_rl = dsff_rl_rect_fun(tlist, dsff, win=50)
+            np.save(file_path, np.array([tlist_rl, dsff_rl]))
+        else:
+            n_jobs = min(mp.cpu_count()-2, ntraj)
+            args_list = [(traj_ind, N, β, tlist, unfolding, thetas) for traj_ind in (range(ntraj))]
+            with mp.Pool(processes=n_jobs) as pool:
+                dsff_results = list(pool.imap(compute_single_traj_poissonian_wrapper, args_list))
             dsff = np.sum(dsff_results, axis=0) / ntraj
             np.save(file_path, dsff)
     else:
