@@ -23,7 +23,13 @@ def main():
                 eigvals_list = [Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ) for M in M_arr]
                 eigvals = find_converged_eigvals(eigvals_list, j, M_arr, γ, g)
                 
-            unfolded_spacings = unfold_spacings(eigvals, j, M_arr[0], γ, g)
+            # unfolded_spacings = unfold_spacings(eigvals, j, M_arr[0], γ, g)
+
+            unfolded_spectrum = unfold_spectrum(eigvals)
+            unfolded_spacings = compute_nearest_neighbor_spacings(unfolded_spectrum)#, j, M_arr[0], γ, g)
+            mean_spacing = np.mean(unfolded_spacings)
+            unfolded_spacings = unfolded_spacings / mean_spacing
+
             eta = compute_eta(unfolded_spacings)
             print(f"γ={γ}, g/gc={g/gc:.2f}, eta={eta}")
             eta_arr.append(eta)

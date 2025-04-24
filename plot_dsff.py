@@ -81,10 +81,11 @@ def plot_dicke_dsff():
         num_g = len(g_arr[γ])
         num_rows = (num_g + 1) // 2
         plt.figure(figsize=(10,5*num_rows))
+        unfolding = 'yes'
         for g_ind, g in enumerate(g_arr[γ]):
-            tlist2, dsff, dsff_raw, N = dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win, unfolding = "yes")
-            tlist1, dsff_ginue = dsff_ginue_fun(N, β, tlist, ntraj, unfolding = "yes")
-            tlist3, dsff_poissonian = dsff_poissonian_fun(N, β, tlist, ntraj, unfolding = "yes")
+            tlist2, dsff, dsff_raw, N = dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win, unfolding = unfolding, θ1 = θ1, θ2 = θ2, n_theta=n_theta)
+            tlist1, dsff_ginue = dsff_ginue_fun(N, β, tlist, ntraj, unfolding = unfolding)
+            tlist3, dsff_poissonian = dsff_poissonian_fun(N, β, tlist, ntraj, unfolding = unfolding)
             plt.subplot(num_rows,2,g_ind+1)
             plt.title(f"g={g}")
             plt.xscale('log'); plt.yscale('log')
@@ -103,7 +104,7 @@ def plot_dicke_dsff():
         if not os.path.exists("plots"):
             os.mkdir("plots")
         plt.legend()
-        plt.savefig(f'plots/Dicke_dsff_j={j}_M={M_arr[0]}_β={β}_γ={γ}_gc={gc}.png')
+        plt.savefig(f'plots/Dicke_dsff_j={j}_M={M_arr[0]}_β={β}_γ={γ}_gc={gc}_θ1={np.round(θ1,2)}_θ2={np.round(θ2,2)}_win={win}_unfolding={unfolding}.png')
         plt.show()
 
     return 0

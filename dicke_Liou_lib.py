@@ -357,6 +357,41 @@ def compute_local_density(eigvals, spacings, sigma=None, j=None, M=None, γ=None
 
     return density
 
+def filter_circular_patch(eigvals, min_count=10000, initial_radius=1, radius_step=1, max_radius=20, centre=None):
+    """
+    Filters a circular patch of eigenvalues around the mean or given centre.
+
+    Parameters:
+        eigvals (np.ndarray): Complex eigenvalues.
+        min_count (int): Minimum number to retain.
+        initial_radius (float): Starting radius.
+        radius_step (float): Incremental expansion.
+        max_radius (float): Maximum search radius.
+        centre (complex or None): Optional centre point. Defaults to np.mean(eigvals).
+
+    Returns:
+        np.ndarray: Filtered eigenvalues inside the circular patch.
+    """
+    if eigvals.size == 0:
+        return eigvals
+
+    if centre is None:
+        centre = np.mean(eigvals)
+
+    radius = initial_radius
+    while radius <= max_radius:
+        distances = np.abs(eigvals - centre)
+        mask = distances <= radius
+        selected = eigvals[mask]
+        if selected.size >= min_count:
+            print(f"✓ Selected {selected.size} eigenvalues within radius {radius:.3f} around centre {centre:.3f}")
+            return selected
+        radius += radius_step
+
+    print(f"⚠️ Only {selected.size} eigenvalues found within max radius {max_radius}")
+    return selected
+
+
 def unfold_spacings(eigvals, j=None, M=None, γ=None, g=None):
     """Performs the unfolding procedure following equation (B1) in PhysRevA.105.L050201."""
     eigvals = np.sort(eigvals)
@@ -371,18 +406,19 @@ def unfold_spacings(eigvals, j=None, M=None, γ=None, g=None):
 
     return unfolded_spacings
 
-def unfold_spectrum(eigvals, num_y_bins=50, poly_order=6):
+def unfold_spectrum(eigvals, num_y_bins=50, num_x_bins=100, poly_order=4):
     """
-    Unfold eigenvalues using a polynomial fit to the cumulative counting function
-    (number variance), applied slice-wise along the imaginary axis.
+    Unfold complex eigenvalues using horizontal slices (fixed y), where ρ_av(x, y)
+    is estimated via polynomial fit to histogram and then integrated.
 
     Args:
-    - eigvals: array of complex eigenvalues.
-    - num_y_bins: number of bins along the imaginary axis.
-    - poly_order: degree of the polynomial to fit to the counting function.
+        eigvals (np.ndarray): Complex eigenvalues.
+        num_y_bins (int): Number of horizontal bins along Im axis.
+        num_x_bins (int): Number of bins along Re axis for histogramming.
+        poly_order (int): Degree of polynomial for density fitting.
 
     Returns:
-    - unfolded_eigvals: array of complex unfolded eigenvalues.
+        np.ndarray: Unfolded complex eigenvalues.
     """
     eigvals = np.array(eigvals)
     x = np.real(eigvals)
@@ -394,26 +430,32 @@ def unfold_spectrum(eigvals, num_y_bins=50, poly_order=6):
 
     for i in range(num_y_bins):
         mask = bin_indices == i
-        if np.sum(mask) < poly_order + 2:
+        if np.sum(mask) < poly_order + 3:
             continue
 
         x_bin = x[mask]
         y_bin = y[mask]
 
-        # Sort x within this y-bin
-        sort_idx = np.argsort(x_bin)
-        x_sorted = x_bin[sort_idx]
-        count_indices = np.arange(1, len(x_sorted) + 1)
+        # Histogram to estimate raw density
+        hist_vals, bin_edges = np.histogram(x_bin, bins=num_x_bins, density=True)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
-        # Fit polynomial to the counting function
-        coeffs = np.polyfit(x_sorted, count_indices, deg=poly_order)
-        cumulative_poly = np.poly1d(coeffs)
+        # Fit low-order polynomial to estimated density
+        coeffs = np.polyfit(bin_centers, hist_vals, deg=poly_order)
+        rho_poly = np.poly1d(coeffs)
 
-        # Evaluate unfolded x values using the fit
-        unfolded_x[mask] = cumulative_poly(x_bin)
+        # Define fine x-grid and integrate fitted density
+        x_grid = np.linspace(x_bin.min() - 1e-3, x_bin.max() + 1e-3, 1000)
+        rho_vals = rho_poly(x_grid)
+        rho_vals[rho_vals < 0] = 0  # clip small negative values
+
+        cumulative = cumulative_trapezoid(rho_vals, x_grid, initial=0)
+
+        # Interpolate unfolded x values
+        unfolded_x_vals = np.interp(x_bin, x_grid, cumulative)
+        unfolded_x[mask] = unfolded_x_vals
 
     unfolded_eigvals = unfolded_x + 1j * y
-
     return unfolded_eigvals
 
 def transform_spectrum(eigvals, A=-1j, beta=0.5, sigma=None):
@@ -602,7 +644,12 @@ def compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding):
     - Averaged DSFF over all thetas.
     """
     # eigvals = transform_spectrum(eigvals)
-    eigvals = np.array(eigvals)
+
+    if unfolding == "yes":
+        eigvals = unfold_spectrum(eigvals)
+    elif unfolding == "no":
+        eigvals = eigvals
+
     x = np.real(eigvals)
     y = np.imag(eigvals)
     
@@ -612,19 +659,7 @@ def compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding):
     for theta_ind, theta in enumerate(thetas):
         print(f"theta_ind = {theta_ind} of {len(thetas)}")
         proj_eigs = x * np.cos(theta) + y * np.sin(theta)
-        
-        if unfolding == "yes":
-            eigvals = unfold_spectrum(eigvals)
-            x = np.real(eigvals)
-            y = np.imag(eigvals)
-            proj_eigs = x * np.cos(theta) + y * np.sin(theta)   
-        elif unfolding == "projected unfolding":
-            proj_eigs = unfold_poly(proj_eigs)
-        elif unfolding == "no":
-            proj_eigs = proj_eigs
-
         norm = np.sum(np.exp(-β * proj_eigs))  # scalar
-
         for i, t in enumerate(tlist):
             exp_term = np.exp(-(β - 1j * t) * proj_eigs)
             sff = np.abs(np.sum(exp_term))**2
@@ -634,18 +669,13 @@ def compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding):
 
     return dsff_avg
 
-def dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win = 100, σ = 1, kernel = "rect", α = 0.8, unfolding="no", n_theta=10):
+def dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win = 100, σ = 1, kernel = "rect", α = 0.8, unfolding="no", n_theta=10, θ1=np.pi/2, θ2=np.pi):
     """
     Computes angle-averaged DSFF for multiple M values or a single one.
     """
 
     os.makedirs("dsff", exist_ok=True)
-
-    # Range of angles over which we average the DSFF
-    θ1 = np.pi / 2.1
-    θ2 = np.pi / 2
     thetas = np.linspace(θ1, θ2, n_theta)
-
     prefix = f"j={j}_M={M_arr[0]}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2, 2)}_β={β}_g={g}_γ={γ}_θ={np.round(θ2,2)}_ntheta={n_theta}"
 
     # Selecting only converged eigenvalues
@@ -690,6 +720,7 @@ def dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win = 100, σ = 1, k
             tlist_dsff = dsff_rl_gau_fun(tlist, dsff_raw, σ)
         np.save(file_path, tlist_dsff)
     else:
+        print(f"{file_path} already exists.")
         tlist_dsff = np.load(file_path)
         dsff_raw = np.load(file_path_raw)
 
@@ -819,12 +850,12 @@ def dsff_ginue_fun(N, β, tlist, ntraj, unfolding = 'no'):
 
     print(f"unfolding: {unfolding}, N: {N}, ntraj: {ntraj}")
 
-    θ1 = np.pi / 2.1
     θ2 = np.pi / 2
+    θ1 = 2 * θ2 / 2.1
     n_theta = 10
     thetas = np.linspace(θ1, θ2, n_theta)
 
-    file_path = f"dsff/dsff_ginue_N={N}_ntraj={ntraj}_θ={np.round(θ2,2)}.npy"
+    file_path = f"dsff/dsff_ginue_N={N}_ntraj={ntraj}"
     if unfolding == 'yes':
         file_path += f"_unfolded.npy"
     elif unfolding == 'projected unfolding':
@@ -908,18 +939,16 @@ def dsff_poissonian_fun(N, β, tlist, ntraj, unfolding = 'no'):
     """
     os.makedirs("dsff", exist_ok=True)
 
-    θ1 = np.pi / 2.1
     θ2 = np.pi / 2
+    θ1 = 2 * θ2 / 2.1
     n_theta = 10
     thetas = np.linspace(θ1, θ2, n_theta)
 
     print(f"unfolding: {unfolding}, N: {N}, ntraj: {ntraj}")
 
-    file_path = f"dsff/dsff_poissonian_N={N}_ntraj={ntraj}_θ={np.round(θ2,2)}.npy"
+    file_path = f"dsff/dsff_poissonian_N={N}_ntraj={ntraj}"
     if unfolding == 'yes':
         file_path += f"_unfolded.npy"
-    elif unfolding == 'projected unfolding':
-        file_path += f"_projected_unfolding.npy"
     elif unfolding == 'no':
         file_path += f"_folded.npy"
 

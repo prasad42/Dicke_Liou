@@ -28,20 +28,23 @@ for g_ind, g in enumerate(g_arr_for_gamma):
         eigvals = find_converged_eigvals(eigvals_list, j, M_arr, γ, g, rel_tol=0.1, abs_tol=1e-6)
         print(f"Converged eigenvalues for g={g}: {len(eigvals)} out of {len(eigvals_list[-1])}")
 
+    # Filter eigenvalues near the center
+    eigvals = filter_circular_patch(eigvals)
     # Unfold eigenvalues
     eigvals_unfolded = unfold_spectrum(eigvals)
+    # eigvals_unfolded1 = filter_rectangular_patch(eigvals_unfolded, min_count = 10000, max_grow = 10)
 
     # Compute density for normal eigenvalues
     x = np.real(eigvals)
     y = np.imag(eigvals)
-    grid_x, grid_y = np.meshgrid(
-        np.linspace(x.min(), x.max(), 100),
-        np.linspace(y.min(), y.max(), 100)
-    )
-    positions = np.vstack([grid_x.ravel(), grid_y.ravel()]).T
-    values = np.vstack([x, y]).T
-    kde = gaussian_kde(values.T)
-    density_normal = kde(positions.T).reshape(grid_x.shape)
+    # grid_x, grid_y = np.meshgrid(
+    #     np.linspace(x.min(), x.max(), 100),
+    #     np.linspace(y.min(), y.max(), 100)
+    # )
+    # positions = np.vstack([grid_x.ravel(), grid_y.ravel()]).T
+    # values = np.vstack([x, y]).T
+    # kde = gaussian_kde(values.T)
+    # density_normal = kde(positions.T).reshape(grid_x.shape)
 
     # Plot normal eigenvalues
     plt.subplot(num_g, 4, 4 * g_ind + 1)
@@ -52,19 +55,21 @@ for g_ind, g in enumerate(g_arr_for_gamma):
     plt.scatter(x, y, s=1, marker="^")
 
     # Plot density heatmap for normal eigenvalues
-    plt.subplot(num_g, 4, 4 * g_ind + 2)
-    plt.title(f"Density Heatmap (Normal) g={g}")
-    plt.xlabel("Re E")
-    plt.ylabel("Im E")
-    plt.imshow(
-        density_normal, origin='lower', aspect='auto',
-        extent=(x.min(), x.max(), y.min(), y.max()), cmap='viridis'
-    )
-    plt.colorbar(label="Density")
+    # plt.subplot(num_g, 4, 4 * g_ind + 2)
+    # plt.title(f"Density Heatmap (Normal) g={g}")
+    # plt.xlabel("Re E")
+    # plt.ylabel("Im E")
+    # plt.imshow(
+    #     density_normal, origin='lower', aspect='auto',
+    #     extent=(x.min(), x.max(), y.min(), y.max()), cmap='viridis'
+    # )
+    # plt.colorbar(label="Density")
 
     # Unfolded eigenvalues for plotting
     x_unf = np.real(eigvals_unfolded)
     y_unf = np.imag(eigvals_unfolded)
+    # x1_unf = np.real(eigvals_unfolded1)
+    # y1_unf = np.imag(eigvals_unfolded1)
 
     # Plot unfolded eigenvalues
     plt.subplot(num_g, 4, 4 * g_ind + 3)
@@ -72,27 +77,28 @@ for g_ind, g in enumerate(g_arr_for_gamma):
     plt.xlabel("Re E (unfolded)")
     plt.ylabel("Im E (unfolded)")
     plt.scatter(x_unf, y_unf, s=1, marker=".")
+    # plt.scatter(x1_unf, y1_unf, s=1, marker="^")
 
     # Compute density for unfolded eigenvalues
-    grid_x_unf, grid_y_unf = np.meshgrid(
-        np.linspace(x_unf.min(), x_unf.max(), 100),
-        np.linspace(y_unf.min(), y_unf.max(), 100)
-    )
-    positions_unf = np.vstack([grid_x_unf.ravel(), grid_y_unf.ravel()]).T
-    values_unf = np.vstack([x_unf, y_unf]).T
-    kde_unf = gaussian_kde(values_unf.T)
-    density_unf = kde_unf(positions_unf.T).reshape(grid_x_unf.shape)
+    # grid_x_unf, grid_y_unf = np.meshgrid(
+    #     np.linspace(x_unf.min(), x_unf.max(), 100),
+    #     np.linspace(y_unf.min(), y_unf.max(), 100)
+    # )
+    # positions_unf = np.vstack([grid_x_unf.ravel(), grid_y_unf.ravel()]).T
+    # values_unf = np.vstack([x_unf, y_unf]).T
+    # kde_unf = gaussian_kde(values_unf.T)
+    # density_unf = kde_unf(positions_unf.T).reshape(grid_x_unf.shape)
 
     # Plot density heatmap for unfolded eigenvalues
-    plt.subplot(num_g, 4, 4 * g_ind + 4)
-    plt.title(f"Density Heatmap (Unfolded) g={g}")
-    plt.xlabel("Re E (unfolded)")
-    plt.ylabel("Im E (unfolded)")
-    plt.imshow(
-        density_unf, origin='lower', aspect='auto',
-        extent=(x_unf.min(), x_unf.max(), y_unf.min(), y_unf.max()), cmap='viridis'
-    )
-    plt.colorbar(label="Density")
+    # plt.subplot(num_g, 4, 4 * g_ind + 4)
+    # plt.title(f"Density Heatmap (Unfolded) g={g}")
+    # plt.xlabel("Re E (unfolded)")
+    # plt.ylabel("Im E (unfolded)")
+    # plt.imshow(
+    #     density_unf, origin='lower', aspect='auto',
+    #     extent=(x_unf.min(), x_unf.max(), y_unf.min(), y_unf.max()), cmap='viridis'
+    # )
+    # plt.colorbar(label="Density")
 
 if not os.path.exists("plots"):
     os.makedirs("plots")
