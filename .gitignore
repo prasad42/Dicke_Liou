@@ -9,19 +9,13 @@ evals_par_Lop/
 evals_GinOE/
 evals_GinUE/
 dsff/
-<<<<<<< HEAD
-<<<<<<< HEAD
 spacings/
-mask_cache/
+# mask_cache/
 local_density/
 evals_Poi/
 converged_eigvals/
-=======
->>>>>>> bf355ca (Filter and Unfold)
-=======
 mask_cache/
 temp/
->>>>>>> 006d35a (Added Unfolding and P(s))
 
 # Ignore Python cache files
 __pycache__/
