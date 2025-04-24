@@ -288,6 +288,8 @@ def find_converged_eigvals(eigvals_list, j=None, M_arr=None, γ=None, g=None, re
 
     return converged
 
+    return np.array(converged)
+
 def find_nearest(target, array):
     """Helper function to find closest eigenvalue"""
     return array[np.argmin(np.abs(array - target))]
@@ -714,13 +716,14 @@ def dsff_fun_theta_avg(ω, ω0, j, M_arr, g, β, γ, tlist, win = 100, σ = 1, k
         print(f"Computing DSFF averaged over θ ∈ [{θ1}, {θ2}], n_theta = {n_theta}")
         dsff_raw = compute_dsff_theta_avg(eigvals, β, tlist, thetas, unfolding)
         np.save(file_path_raw, dsff_raw)
+
         if kernel == 'rect':
             tlist_dsff = dsff_rl_rect_fun(tlist, dsff_raw, win)
         elif kernel == 'gau':
             tlist_dsff = dsff_rl_gau_fun(tlist, dsff_raw, σ)
+        
         np.save(file_path, tlist_dsff)
     else:
-        print(f"{file_path} already exists.")
         tlist_dsff = np.load(file_path)
         dsff_raw = np.load(file_path_raw)
 
