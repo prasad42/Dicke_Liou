@@ -38,7 +38,7 @@ def Dicke_Lop_even_evals_fun(ω, ω0, j, M, g, γ):
     
     os.makedirs("evals_par_Lop",exist_ok=True)
     file_path = f"evals_par_Lop/evals_j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2/4+ω**2))/2,2)}_γ={γ}_g={g}.npy"
-    print(f"j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω/ω0*(γ**2+ω**2))/2,2)}_γ={γ}_g={g}")
+    print(f"j={j}_M={M}_ω={ω}_ω0={ω0}_gc={np.round(np.sqrt(ω0/ω*((γ/2)**2+ω**2))/2,2)}_γ={γ}_g={g}")
     if not os.path.exists(file_path):
         print(f"{file_path} does not exist, generating data.")
         a  = qt.tensor(qt.destroy(M), qt.qeye(int(2*j+1)))

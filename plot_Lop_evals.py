@@ -6,11 +6,8 @@ import numpy as np
 from scipy.stats import gaussian_kde
 
 g_arr = {
-    2.2: [0.2, 1.0],
+    2.2: [0.2],
 }
-
-j=5
-M_arr = [40]
 
 # Use the first gamma value from the array
 γ = γ_arr[0]

@@ -68,7 +68,7 @@ def main():
                 Line2D([0], [0], linestyle='-', linewidth=1, label='Dicke Model')
                 ]
             fig.legend(custom_lines, ['GinUE', '2D Poisson', 'Dicke Model'], loc='upper center', ncol=3,
-                    frameon=False, bbox_to_anchor=(0.5, 1.05), fontsize=8)
+                    frameon=False, bbox_to_anchor=(0.5, 1.05), fontsize=7)
 
             # handles, labels = ax.get_legend_handles_labels()
             # fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.02),
